@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>フロッガー</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a0a;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-family: 'Courier New', monospace;
+  overflow: hidden;
+}
+canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border: 2px solid #2a2a2a;
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+'use strict';
+
+// ============================================================
+// キャンバス・グリッド定数
+// ============================================================
+const COLS = 14;
+const ROWS = 16;
+const CELL = 40;
+const W = COLS * CELL;   // 560
+const H = ROWS * CELL;   // 640
+
+const cv = document.getElementById('c');
+const cx = cv.getContext('2d');
+cv.width = W;
+cv.height = H;
+
+const TIME_LIMIT = 30;
+
+// 行レイアウト (0 = 画面最上部)
+const ROW_GOAL       = 0;
+const ROW_RIVER_TOP  = 1;
+const ROW_RIVER_BOT  = 5;
+const ROW_MEDIAN     = 6;
+const ROW_ROAD_TOP   = 7;
+const ROW_ROAD_BOT   = 11;
+const ROW_START      = 12;
+const ROW_HUD        = 13;
+
+// ============================================================
+// パレット
+// ============================================================
+const PAL = {
+  grass:      '#2d5a1e',
+  grassHi:    '#3a7228',
+  road:       '#3a3a3a',
+  roadLine:   '#ccccaa',
+  water:      '#1a3a6a',
+  waterDk:    '#0e2848',
+  log:        '#6b3a1f',
+  logHi:      '#8b5a2f',
+  turtle:     '#1a6a3a',
+  turtleDk:   '#0e4a2a',
+  turtleLeg:  '#2a8a4a',
+  frog:       '#5aaa2a',
+  frogDk:     '#3a8a1a',
+  frogEye:    '#ffffff',
+  frogPupil:  '#111111',
+  lily:       '#2a6a2a',
+  hud:        '#1a1a1a',
+  text:       '#e0e0c0',
+  timerOk:    '#44aa44',
+  timerWarn:  '#aaaa22',
+  timerDead:  '#cc3333',
+  timerBg:    '#333333',
+};
+
+const VCOLORS = ['#cc2222','#2255cc','#ccaa22','#dddddd','#cc6622','#8822aa'];
+
+// ============================================================
+// サウンド
+// ============================================================
+let actx = null;
+
+function ensureAudio() {
+  if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function tone(freq, dur, type, vol, decay) {
+  ensureAudio();
+  const o = actx.createOscillator();
+  const g = actx.createGain();
+  o.type = type || 'square';
+  o.frequency.value = freq;
+  g.gain.setValueAtTime(vol || 0.12, actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + (decay || dur));
+  o.connect(g); g.connect(actx.destination);
+  o.start(); o.stop(actx.currentTime + dur);
+}
+
+function sndHop() {
+  tone(440, 0.07, 'square', 0.10, 0.07);
+  setTimeout(() => tone(580, 0.05, 'square', 0.08, 0.05), 25);
+}
+
+function sndSquash() {
+  tone(150, 0.25, 'sawtooth', 0.18, 0.25);
+  setTimeout(() => tone(100, 0.35, 'sawtooth', 0.12, 0.35), 80);
+}
+
+function sndSplash() {
+  ensureAudio();
+  const len = actx.sampleRate * 0.3;
+  const buf = actx.createBuffer(1, len, actx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) * 0.25;
+  const s = actx.createBufferSource();
+  const f = actx.createBiquadFilter();
+  f.type = 'lowpass'; f.frequency.value = 700;
+  s.buffer = buf; s.connect(f); f.connect(actx.destination); s.start();
+}
+
+function sndGoal() {
+  [523, 659, 784, 1047].forEach((n, i) =>
+    setTimeout(() => tone(n, 0.12, 'square', 0.10, 0.12), i * 70)
+  );
+}
+
+function sndClear() {
+  [523, 587, 659, 698, 784, 880, 988, 1047].forEach((n, i) =>
+    setTimeout(() => tone(n, 0.18, 'square', 0.09, 0.18), i * 90)
+  );
+}
+
+// ============================================================
+// 状態管理
+// ============================================================
+const ST = { TITLE: 0, PLAY: 1, DYING: 2, CLEAR: 3, OVER: 4 };
+let state = ST.TITLE;
+let score = 0;
+let hiScore = 0;
+let lives = 5;
+let stageNum = 1;
+let timer = TIME_LIMIT;
+let farthestRow = ROW_START;
+
+// カエル
+let frogX = 0, frogY = 0, frogDir = 0;
+let frogRiding = null;
+
+// ホップアニメ
+const HOP_DUR = 0.1; // 秒
+let hopTime = 0;
+let hopFromX = 0, hopFromY = 0, hopToX = 0, hopToY = 0;
+
+// 死亡アニメ
+const DEATH_DUR = 0.7;
+let deathTime = 0;
+let deathType = '';
+
+// クリアアニメ
+const CLEAR_DUR = 2.0;
+let clearTime = 0;
+
+// ゴール
+let goals = [false, false, false, false, false];
+
+// レーン
+let roadLanes = [];
+let riverLanes = [];
+
+// ============================================================
+// レーン生成
+// ============================================================
+function makeRoadLanes(stg) {
+  const sm = 1 + (stg - 1) * 0.15;
+  return [
+    { row: 11, dir:  1, spd: 1.2 * sm, vehs: makeVehicles(2, 4, 3) },
+    { row: 10, dir: -1, spd: 0.9 * sm, vehs: makeVehicles(3, 5, 2) },
+    { row:  9, dir:  1, spd: 2.2 * sm, vehs: makeVehicles(2, 4, 3) },
+    { row:  8, dir: -1, spd: 1.6 * sm, vehs: makeVehicles(2, 4, 3) },
+    { row:  7, dir:  1, spd: 2.8 * sm, vehs: makeVehicles(2, 5, 2) },
+  ];
+}
+
+function makeVehicles(minLen, spacing, count) {
+  const out = [];
+  let xOff = 0;
+  for (let i = 0; i < count; i++) {
+    const len = minLen + Math.floor(Math.random() * 2);
+    out.push({
+      x: xOff * CELL,
+      len,
+      color: VCOLORS[Math.floor(Math.random() * VCOLORS.length)]
+    });
+    xOff += len + spacing + Math.floor(Math.random() * 3);
+  }
+  return out;
+}
+
+function makeRiverLanes(stg) {
+  const sm = 1 + (stg - 1) * 0.12;
+  return [
+    { row: 5, dir:  1, spd: 0.9 * sm, type: 'log',    objs: makeLogs(3, 4, 3) },
+    { row: 4, dir: -1, spd: 1.1 * sm, type: 'turtle', objs: makeTurtles(3, 4, 3, true) },
+    { row: 3, dir:  1, spd: 1.3 * sm, type: 'log',    objs: makeLogs(4, 4, 2) },
+    { row: 2, dir: -1, spd: 0.8 * sm, type: 'turtle', objs: makeTurtles(2, 5, 3, false) },
+    { row: 1, dir:  1, spd: 1.6 * sm, type: 'log',    objs: makeLogs(2, 5, 3) },
+  ];
+}
+
+function makeLogs(baseLen, spacing, count) {
+  const out = [];
+  let xOff = 0;
+  for (let i = 0; i < count; i++) {
+    const len = baseLen + Math.floor(Math.random() * 2);
+    out.push({ x: xOff * CELL, len });
+    xOff += len + spacing + Math.floor(Math.random() * 3);
+  }
+  return out;
+}
+
+function makeTurtles(groupSize, spacing, count, canDive) {
+  const out = [];
+  let xOff = 0;
+  for (let i = 0; i < count; i++) {
+    const sz = groupSize + Math.floor(Math.random() * 2);
+    out.push({
+      x: xOff * CELL, len: sz, canDive,
+      divePhase: Math.random() * Math.PI * 2,
+      diving: false,
+      diveClock: 0,
+      diveInterval: 3 + Math.random() * 3,
+      diveDuration: 1.5 + Math.random() * 1,
+    });
+    xOff += sz + spacing + Math.floor(Math.random() * 2);
+  }
+  return out;
+}
+
+// ============================================================
+// ゴールポケット座標
+// ============================================================
+function goalPockets() {
+  const pw = CELL;
+  const gap = (W - 5 * pw) / 6;
+  const arr = [];
+  for (let i = 0; i < 5; i++) {
+    arr.push({ x: gap + i * (pw + gap), y: 0, w: pw, h: CELL });
+  }
+  return arr;
+}
+
+// ============================================================
+// 初期化
+// ============================================================
+function initStage() {
+  roadLanes = makeRoadLanes(stageNum);
+  riverLanes = makeRiverLanes(stageNum);
+  goals = [false, false, false, false, false];
+  spawnFrog();
+}
+
+function spawnFrog() {
+  frogX = Math.floor(COLS / 2) * CELL;
+  frogY = ROW_START * CELL;
+  frogDir = 0;
+  frogRiding = null;
+  hopTime = 0;
+  timer = TIME_LIMIT;
+  farthestRow = ROW_START;
+}
+
+function startGame() {
+  score = 0;
+  lives = 5;
+  stageNum = 1;
+  state = ST.PLAY;
+  initStage();
+}
+
+// ============================================================
+// 入力
+// ============================================================
+const inputQueue = [];
+
+document.addEventListener('keydown', (e) => {
+  const validKeys = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Enter'];
+  if (validKeys.includes(e.code)) e.preventDefault();
+
+  if (state === ST.TITLE && (e.code === 'Space' || e.code === 'Enter')) {
+    ensureAudio();
+    startGame();
+    return;
+  }
+  if (state === ST.OVER && (e.code === 'Space' || e.code === 'Enter')) {
+    state = ST.TITLE;
+    return;
+  }
+  if (state === ST.PLAY && hopTime <= 0) {
+    if (e.code === 'ArrowUp')    inputQueue.push(0);
+    if (e.code === 'ArrowDown')  inputQueue.push(2);
+    if (e.code === 'ArrowLeft')  inputQueue.push(3);
+    if (e.code === 'ArrowRight') inputQueue.push(1);
+  }
+});
+
+// ============================================================
+// 物理更新: レーン移動
+// ============================================================
+function updateLanes(dt) {
+  const pxDt = dt * 60; // 60fps 基準のピクセル量に変換
+
+  for (const lane of roadLanes) {
+    for (const v of lane.vehs) {
+      v.x += lane.dir * lane.spd * pxDt;
+      if (lane.dir > 0 && v.x > W) v.x = -v.len * CELL;
+      else if (lane.dir < 0 && v.x + v.len * CELL < 0) v.x = W;
+    }
+  }
+
+  for (const lane of riverLanes) {
+    for (const obj of lane.objs) {
+      obj.x += lane.dir * lane.spd * pxDt;
+      if (lane.dir > 0 && obj.x > W + CELL) obj.x = -obj.len * CELL - CELL;
+      else if (lane.dir < 0 && obj.x + obj.len * CELL < -CELL) obj.x = W + CELL;
+
+      // 亀の潜水サイクル
+      if (lane.type === 'turtle' && obj.canDive) {
+        obj.diveClock += dt;
+        const cycle = obj.diveInterval + obj.diveDuration;
+        const phase = obj.diveClock % cycle;
+        const wasDiving = obj.diving;
+        obj.diving = phase >= obj.diveInterval;
+
+        // 潜水開始の瞬間にカエルが乗っていたら落水
+        if (obj.diving && !wasDiving && frogRiding && frogRiding.obj === obj) {
+          killFrog('splash');
+        }
+      }
+    }
+  }
+}
+
+// ============================================================
+// カエルの移動処理
+// ============================================================
+function processInput() {
+  if (state !== ST.PLAY || hopTime > 0 || inputQueue.length === 0) return;
+
+  const dir = inputQueue.shift();
+  inputQueue.length = 0; // 残りは捨てる
+
+  const dx = [0, 1, 0, -1][dir];
+  const dy = [-1, 0, 1, 0][dir];
+  const nx = frogX + dx * CELL;
+  const ny = frogY + dy * CELL;
+
+  // 画面外制限
+  if (nx < 0 || nx >= W || ny < 0 || ny > ROW_START * CELL) return;
+
+  frogDir = dir;
+  hopFromX = frogX;
+  hopFromY = frogY;
+  hopToX = nx;
+  hopToY = ny;
+  hopTime = HOP_DUR;
+  frogRiding = null;
+  sndHop();
+
+  // 前進ボーナス
+  const row = Math.floor(ny / CELL);
+  if (row < farthestRow) {
+    score += 10;
+    farthestRow = row;
+  }
+}
+
+// ============================================================
+// 当たり判定
+// ============================================================
+function checkCollisions() {
+  const row = Math.floor(frogY / CELL);
+  const fl = frogX + 4;
+  const fr = frogX + CELL - 4;
+
+  // ゴールゾーン
+  if (row === ROW_GOAL) {
+    const pockets = goalPockets();
+    const frogCx = frogX + CELL / 2;
+    let landed = false;
+    for (let i = 0; i < 5; i++) {
+      const p = pockets[i];
+      if (frogCx >= p.x && frogCx <= p.x + p.w) {
+        if (goals[i]) { killFrog('squash'); return; }
+        goals[i] = true;
+        score += 50 + Math.floor(timer) * 10;
+        sndGoal();
+        landed = true;
+        if (goals.every(g => g)) {
+          score += 1000;
+          state = ST.CLEAR;
+          clearTime = CLEAR_DUR;
+          sndClear();
+          return;
+        }
+        spawnFrog();
+        return;
+      }
+    }
+    if (!landed) { killFrog('splash'); return; }
+  }
+
+  // 道路
+  if (row >= ROW_ROAD_TOP && row <= ROW_ROAD_BOT) {
+    for (const lane of roadLanes) {
+      if (lane.row !== row) continue;
+      for (const v of lane.vehs) {
+        if (fr > v.x && fl < v.x + v.len * CELL) {
+          killFrog('squash');
+          return;
+        }
+      }
+    }
+  }
+
+  // 川
+  if (row >= ROW_RIVER_TOP && row <= ROW_RIVER_BOT) {
+    let onSomething = false;
+    for (const lane of riverLanes) {
+      if (lane.row !== row) continue;
+      for (const obj of lane.objs) {
+        if (lane.type === 'turtle' && obj.diving) continue;
+        const ol = obj.x + 4;
+        const or2 = obj.x + obj.len * CELL - 4;
+        if (fr > ol && fl < or2) {
+          onSomething = true;
+          frogRiding = { lane, obj };
+        }
+      }
+    }
+    if (!onSomething) { killFrog('splash'); return; }
+  }
+}
+
+function killFrog(type) {
+  if (state !== ST.PLAY) return;
+  deathType = type;
+  deathTime = DEATH_DUR;
+  state = ST.DYING;
+  frogRiding = null;
+  if (type === 'squash') sndSquash();
+  else sndSplash();
+}
+
+// ============================================================
+// メイン update
+// ============================================================
+function update(dt) {
+  if (state === ST.PLAY) {
+    processInput();
+
+    // ホップ中
+    if (hopTime > 0) {
+      hopTime -= dt;
+      if (hopTime <= 0) {
+        hopTime = 0;
+        frogX = hopToX;
+        frogY = hopToY;
+        checkCollisions();
+      }
+    }
+
+    // レーン更新 (ホップ中も動く)
+    updateLanes(dt);
+
+    // 乗っている場合はカエルも移動
+    if (frogRiding && hopTime <= 0 && state === ST.PLAY) {
+      const pxDt = dt * 60;
+      frogX += frogRiding.lane.dir * frogRiding.lane.spd * pxDt;
+      if (frogX < -CELL * 0.5 || frogX > W - CELL * 0.5) {
+        killFrog('splash');
+        return;
+      }
+      // 乗り物がまだ下にあるか再判定
+      checkCollisions();
+    }
+
+    // タイマー
+    if (state === ST.PLAY) {
+      timer -= dt;
+      if (timer <= 0) {
+        timer = 0;
+        killFrog('squash');
+      }
+    }
+
+    // 道路上で車が突っ込んでくるケース（カエル静止中）
+    if (state === ST.PLAY && hopTime <= 0) {
+      const row = Math.floor(frogY / CELL);
+      if (row >= ROW_ROAD_TOP && row <= ROW_ROAD_BOT) {
+        const fl = frogX + 4;
+        const fr = frogX + CELL - 4;
+        for (const lane of roadLanes) {
+          if (lane.row !== row) continue;
+          for (const v of lane.vehs) {
+            if (fr > v.x && fl < v.x + v.len * CELL) {
+              killFrog('squash');
+              return;
+            }
+          }
+        }
+      }
+    }
+
+  } else if (state === ST.DYING) {
+    updateLanes(dt);
+    deathTime -= dt;
+    if (deathTime <= 0) {
+      lives--;
+      if (lives <= 0) {
+        state = ST.OVER;
+        if (score > hiScore) hiScore = score;
+      } else {
+        state = ST.PLAY;
+        spawnFrog();
+      }
+    }
+
+  } else if (state === ST.CLEAR) {
+    updateLanes(dt);
+    clearTime -= dt;
+    if (clearTime <= 0) {
+      stageNum++;
+      state = ST.PLAY;
+      initStage();
+    }
+  }
+}
+
+// ============================================================
+// 描画ヘルパー
+// ============================================================
+function drawMiniFrog(px, py) {
+  cx.fillStyle = PAL.frog;
+  cx.beginPath();
+  cx.ellipse(px, py, 7, 8, 0, 0, Math.PI * 2);
+  cx.fill();
+  cx.fillStyle = PAL.frogEye;
+  cx.beginPath(); cx.arc(px - 3, py - 4, 2, 0, Math.PI * 2); cx.fill();
+  cx.beginPath(); cx.arc(px + 3, py - 4, 2, 0, Math.PI * 2); cx.fill();
+  cx.fillStyle = PAL.frogPupil;
+  cx.beginPath(); cx.arc(px - 3, py - 5, 1, 0, Math.PI * 2); cx.fill();
+  cx.beginPath(); cx.arc(px + 3, py - 5, 1, 0, Math.PI * 2); cx.fill();
+}
+
+function drawFrog(px, py, dir, scale) {
+  const fcx = px + CELL / 2;
+  const fcy = py + CELL / 2;
+  const s = CELL / 2 - 4;
+
+  cx.save();
+  cx.translate(fcx, fcy);
+  cx.scale(scale, scale);
+  cx.rotate(dir * Math.PI / 2);
+
+  // 後ろ足
+  cx.fillStyle = PAL.frogDk;
+  cx.beginPath(); cx.ellipse(-10, 10, 5, 8, -0.3, 0, Math.PI * 2); cx.fill();
+  cx.beginPath(); cx.ellipse( 10, 10, 5, 8,  0.3, 0, Math.PI * 2); cx.fill();
+  // 前足
+  cx.beginPath(); cx.ellipse(-10, -8, 4, 6, -0.2, 0, Math.PI * 2); cx.fill();
+  cx.beginPath(); cx.ellipse( 10, -8, 4, 6,  0.2, 0, Math.PI * 2); cx.fill();
+
+  // 胴体
+  cx.fillStyle = PAL.frog;
+  cx.beginPath(); cx.ellipse(0, 2, s - 2, s, 0, 0, Math.PI * 2); cx.fill();
+  // 頭
+  cx.beginPath(); cx.ellipse(0, -6, s - 1, s - 3, 0, 0, Math.PI * 2); cx.fill();
+  // 背中模様
+  cx.fillStyle = PAL.frogDk;
+  cx.beginPath(); cx.ellipse(0, 2, s - 6, s - 4, 0, 0, Math.PI * 2); cx.fill();
+
+  // 目の突起
+  cx.fillStyle = PAL.frog;
+  cx.beginPath(); cx.arc(-7, -12, 5, 0, Math.PI * 2); cx.fill();
+  cx.beginPath(); cx.arc( 7, -12, 5, 0, Math.PI * 2); cx.fill();
+  // 白目
+  cx.fillStyle = PAL.frogEye;
+  cx.beginPath(); cx.arc(-7, -13, 3.5, 0, Math.PI * 2); cx.fill();
+  cx.beginPath(); cx.arc( 7, -13, 3.5, 0, Math.PI * 2); cx.fill();
+  // 瞳
+  cx.fillStyle = PAL.frogPupil;
+  cx.beginPath(); cx.arc(-7, -14, 2, 0, Math.PI * 2); cx.fill();
+  cx.beginPath(); cx.arc( 7, -14, 2, 0, Math.PI * 2); cx.fill();
+
+  cx.restore();
+}
+
+function drawLog(px, py, len) {
+  const w = len * CELL;
+  const h = CELL - 6;
+  const ty = py + 3;
+
+  cx.fillStyle = PAL.log;
+  cx.fillRect(px, ty, w, h);
+  // 丸い端
+  cx.beginPath(); cx.arc(px, ty + h / 2, h / 2, Math.PI * 0.5, Math.PI * 1.5); cx.fill();
+  cx.beginPath(); cx.arc(px + w, ty + h / 2, h / 2, -Math.PI * 0.5, Math.PI * 0.5); cx.fill();
+  // 木目
+  cx.strokeStyle = PAL.logHi;
+  cx.lineWidth = 1;
+  for (let lx = px + 15; lx < px + w; lx += 20) {
+    cx.beginPath(); cx.moveTo(lx, ty + 4); cx.lineTo(lx, ty + h - 4); cx.stroke();
+  }
+  // ハイライト
+  cx.fillStyle = 'rgba(255,255,255,0.07)';
+  cx.fillRect(px, ty, w, h / 3);
+}
+
+function drawTurtleGroup(px, py, count, diving, canDive) {
+  const now = Date.now();
+  for (let i = 0; i < count; i++) {
+    const tcx = px + i * CELL + CELL / 2;
+    const tcy = py + CELL / 2;
+
+    if (diving) {
+      // 泡
+      cx.fillStyle = 'rgba(150,200,255,0.3)';
+      const ph = now / 300 + i;
+      cx.beginPath(); cx.arc(tcx - 5, tcy - 3 + Math.sin(ph) * 3, 3, 0, Math.PI * 2); cx.fill();
+      cx.beginPath(); cx.arc(tcx + 4, tcy + 2 + Math.sin(ph + 1) * 2, 2, 0, Math.PI * 2); cx.fill();
+    } else {
+      // 甲羅
+      cx.fillStyle = canDive ? PAL.turtleDk : PAL.turtle;
+      cx.beginPath(); cx.ellipse(tcx, tcy, CELL / 2 - 4, CELL / 2 - 6, 0, 0, Math.PI * 2); cx.fill();
+      // 模様
+      cx.strokeStyle = 'rgba(255,255,255,0.12)';
+      cx.lineWidth = 1;
+      cx.beginPath();
+      cx.moveTo(tcx - 8, tcy); cx.lineTo(tcx + 8, tcy);
+      cx.moveTo(tcx, tcy - 8); cx.lineTo(tcx, tcy + 8);
+      cx.stroke();
+      // 頭
+      cx.fillStyle = PAL.turtleLeg;
+      cx.beginPath(); cx.arc(tcx, tcy - CELL / 2 + 8, 4, 0, Math.PI * 2); cx.fill();
+      // 足
+      for (const [lx, ly] of [[-10,-4],[10,-4],[-10,4],[10,4]]) {
+        cx.beginPath(); cx.arc(tcx + lx, tcy + ly, 3, 0, Math.PI * 2); cx.fill();
+      }
+      // 潜水警告
+      if (canDive && Math.floor(now / 400) % 2) {
+        cx.fillStyle = 'rgba(255,255,100,0.12)';
+        cx.beginPath(); cx.ellipse(tcx, tcy, CELL / 2 - 2, CELL / 2 - 4, 0, 0, Math.PI * 2); cx.fill();
+      }
+    }
+  }
+}
+
+function drawVehicle(px, py, len, color, dir) {
+  const w = len * CELL - 4;
+  const h = CELL - 8;
+  const ty = py + 4;
+  const tx = px + 2;
+
+  // ボディ
+  cx.fillStyle = color;
+  cx.fillRect(tx, ty, w, h);
+  // 屋根ハイライト
+  cx.fillStyle = 'rgba(255,255,255,0.08)';
+  cx.fillRect(tx, ty, w, h / 3);
+
+  // 窓
+  cx.fillStyle = 'rgba(100,180,255,0.45)';
+  if (len >= 3) {
+    const cab = CELL * 0.6;
+    if (dir > 0) cx.fillRect(tx + w - cab - 4, ty + 4, cab, h - 8);
+    else cx.fillRect(tx + 4, ty + 4, cab, h - 8);
+  } else {
+    const ww = w * 0.3;
+    cx.fillRect(tx + (w - ww) / 2, ty + 3, ww, h - 6);
+  }
+
+  // ヘッドライト
+  cx.fillStyle = '#ffee88';
+  const hd = dir > 0 ? tx + w - 3 : tx;
+  cx.fillRect(hd, ty + 4, 3, 4);
+  cx.fillRect(hd, ty + h - 8, 3, 4);
+
+  // テールランプ
+  cx.fillStyle = '#cc2222';
+  const tl = dir > 0 ? tx : tx + w - 3;
+  cx.fillRect(tl, ty + 4, 3, 4);
+  cx.fillRect(tl, ty + h - 8, 3, 4);
+
+  // 影
+  cx.fillStyle = 'rgba(0,0,0,0.18)';
+  cx.fillRect(tx, ty + h, w, 3);
+}
+
+function drawGrassStrip(row) {
+  const y = row * CELL;
+  cx.fillStyle = PAL.grass;
+  cx.fillRect(0, y, W, CELL);
+  cx.fillStyle = PAL.grassHi;
+  for (let gx = 0; gx < W; gx += 8) {
+    const h = 3 + Math.sin(gx * 0.7 + row) * 2;
+    cx.fillRect(gx, y + CELL - h - 2, 2, h);
+  }
+}
+
+// ============================================================
+// メイン描画
+// ============================================================
+function draw() {
+  cx.fillStyle = '#0a0a0a';
+  cx.fillRect(0, 0, W, H);
+
+  if (state === ST.TITLE) { drawTitle(); return; }
+  drawField();
+  if (state === ST.OVER) drawOverlay();
+  if (state === ST.CLEAR) drawClearOverlay();
+}
+
+function drawField() {
+  // ゴールゾーン (水 + リリーパッド)
+  cx.fillStyle = PAL.water;
+  cx.fillRect(0, 0, W, CELL);
+
+  // 岸と生垣（ポケット間）
+  cx.fillStyle = '#1a3a1a';
+  cx.fillRect(0, 0, W, CELL);
+  cx.fillStyle = PAL.water;
+  // ゴールゾーンのポケット以外を水で塗る、ではなく、
+  // ポケットの場所にリリーパッドを描画
+  const pockets = goalPockets();
+  for (let i = 0; i < 5; i++) {
+    const p = pockets[i];
+    // ポケットの窪み
+    cx.fillStyle = PAL.waterDk;
+    cx.beginPath();
+    cx.arc(p.x + p.w / 2, p.y + p.h / 2, CELL / 2 + 2, 0, Math.PI * 2);
+    cx.fill();
+    // リリーパッド
+    cx.fillStyle = PAL.lily;
+    cx.beginPath();
+    cx.arc(p.x + p.w / 2, p.y + p.h / 2, CELL / 2 - 2, 0, Math.PI * 2);
+    cx.fill();
+    // 切れ込み
+    cx.fillStyle = PAL.waterDk;
+    cx.beginPath();
+    cx.moveTo(p.x + p.w / 2, p.y + p.h / 2);
+    cx.lineTo(p.x + p.w / 2 + 10, p.y + 2);
+    cx.lineTo(p.x + p.w / 2 - 2, p.y + 2);
+    cx.closePath();
+    cx.fill();
+    // 埋まっていればカエルアイコン
+    if (goals[i]) drawMiniFrog(p.x + p.w / 2, p.y + p.h / 2);
+  }
+
+  // 川
+  cx.fillStyle = PAL.water;
+  cx.fillRect(0, ROW_RIVER_TOP * CELL, W, 5 * CELL);
+  // 波
+  const now = Date.now();
+  cx.strokeStyle = PAL.waterDk;
+  cx.lineWidth = 1;
+  for (let r = ROW_RIVER_TOP; r <= ROW_RIVER_BOT; r++) {
+    const ry = r * CELL;
+    for (let wx = 0; wx < W; wx += 20) {
+      const off = (now / 600 + r * 3 + wx * 0.1) % (Math.PI * 2);
+      cx.beginPath();
+      cx.moveTo(wx, ry + 12 + Math.sin(off) * 2);
+      cx.lineTo(wx + 10, ry + 12 + Math.sin(off + 1) * 2);
+      cx.stroke();
+    }
+  }
+
+  // 川オブジェクト
+  for (const lane of riverLanes) {
+    const ry = lane.row * CELL;
+    for (const obj of lane.objs) {
+      if (lane.type === 'log') drawLog(obj.x, ry, obj.len);
+      else drawTurtleGroup(obj.x, ry, obj.len, obj.diving, obj.canDive);
+    }
+  }
+
+  // 中間安全地帯
+  drawGrassStrip(ROW_MEDIAN);
+
+  // 道路
+  cx.fillStyle = PAL.road;
+  cx.fillRect(0, ROW_ROAD_TOP * CELL, W, 5 * CELL);
+  // 車線
+  cx.strokeStyle = PAL.roadLine;
+  cx.lineWidth = 1;
+  cx.setLineDash([12, 12]);
+  for (let r = ROW_ROAD_TOP; r < ROW_ROAD_BOT; r++) {
+    cx.beginPath();
+    cx.moveTo(0, (r + 1) * CELL);
+    cx.lineTo(W, (r + 1) * CELL);
+    cx.stroke();
+  }
+  cx.setLineDash([]);
+  // 上下端の白線
+  cx.strokeStyle = PAL.roadLine;
+  cx.lineWidth = 2;
+  cx.beginPath();
+  cx.moveTo(0, ROW_ROAD_TOP * CELL); cx.lineTo(W, ROW_ROAD_TOP * CELL);
+  cx.moveTo(0, (ROW_ROAD_BOT + 1) * CELL); cx.lineTo(W, (ROW_ROAD_BOT + 1) * CELL);
+  cx.stroke();
+
+  // 車両
+  for (const lane of roadLanes) {
+    for (const v of lane.vehs) {
+      drawVehicle(v.x, lane.row * CELL, v.len, v.color, lane.dir);
+    }
+  }
+
+  // スタート地帯
+  drawGrassStrip(ROW_START);
+
+  // HUD
+  cx.fillStyle = PAL.hud;
+  cx.fillRect(0, ROW_HUD * CELL, W, (ROWS - ROW_HUD) * CELL);
+
+  cx.fillStyle = PAL.text;
+  cx.font = '14px "Courier New",monospace';
+  cx.textBaseline = 'middle';
+  cx.textAlign = 'left';
+  cx.fillText('スコア ' + score, 10, ROW_HUD * CELL + 20);
+  cx.textAlign = 'center';
+  cx.fillText('ステージ ' + stageNum, W / 2, ROW_HUD * CELL + 20);
+  cx.textAlign = 'right';
+  cx.fillText('ハイスコア ' + hiScore, W - 10, ROW_HUD * CELL + 20);
+
+  // 残機
+  cx.textAlign = 'left';
+  cx.fillText('残機', 10, 14 * CELL + 20);
+  for (let i = 0; i < lives; i++) drawMiniFrog(72 + i * 28, 14 * CELL + 20);
+
+  // タイマーバー
+  const bx = 10, by = 15 * CELL + 8, bw = W - 20, bh = 16;
+  cx.fillStyle = PAL.timerBg;
+  cx.fillRect(bx, by, bw, bh);
+  const ratio = Math.max(0, timer / TIME_LIMIT);
+  cx.fillStyle = ratio > 0.3 ? PAL.timerOk : ratio > 0.15 ? PAL.timerWarn : PAL.timerDead;
+  cx.fillRect(bx, by, bw * ratio, bh);
+  cx.strokeStyle = '#444';
+  cx.lineWidth = 1;
+  cx.strokeRect(bx, by, bw, bh);
+  cx.fillStyle = PAL.text;
+  cx.font = '10px "Courier New",monospace';
+  cx.textAlign = 'center';
+  cx.textBaseline = 'middle';
+  cx.fillText('タイム', W / 2, by + bh / 2);
+
+  // カエル
+  if (state === ST.DYING) {
+    drawDeathAnim();
+  } else if (state === ST.PLAY || state === ST.CLEAR) {
+    if (hopTime > 0) {
+      const t = 1 - hopTime / HOP_DUR;
+      const ix = hopFromX + (hopToX - hopFromX) * t;
+      const iy = hopFromY + (hopToY - hopFromY) * t;
+      const jump = Math.sin(t * Math.PI) * 8;
+      drawFrog(ix, iy - jump, frogDir, 1 + Math.sin(t * Math.PI) * 0.12);
+    } else {
+      drawFrog(frogX, frogY, frogDir, 1);
+    }
+  }
+}
+
+function drawDeathAnim() {
+  const t = 1 - deathTime / DEATH_DUR;
+  const fcx = frogX + CELL / 2;
+  const fcy = frogY + CELL / 2;
+
+  if (deathType === 'squash') {
+    cx.save();
+    cx.translate(fcx, fcy);
+    cx.scale(1 + t * 0.6, Math.max(0.05, 1 - t * 0.9));
+    cx.globalAlpha = Math.max(0, 1 - t);
+    cx.fillStyle = '#cc3333';
+    cx.beginPath(); cx.arc(0, 0, CELL / 2, 0, Math.PI * 2); cx.fill();
+    cx.restore();
+    // 飛散
+    cx.fillStyle = '#882222';
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const d = t * 35;
+      cx.globalAlpha = Math.max(0, 1 - t * 1.2);
+      cx.fillRect(fcx + Math.cos(a) * d - 2, fcy + Math.sin(a) * d - 2, 4, 4);
+    }
+    cx.globalAlpha = 1;
+  } else {
+    cx.save();
+    cx.translate(fcx, fcy);
+    cx.globalAlpha = Math.max(0, 1 - t);
+    const sc = Math.max(0.01, 1 - t * 0.6);
+    cx.scale(sc, sc);
+    cx.fillStyle = PAL.frog;
+    cx.beginPath(); cx.arc(0, 0, CELL / 2 - 4, 0, Math.PI * 2); cx.fill();
+    cx.restore();
+    // 波紋
+    cx.lineWidth = 2;
+    for (let r = 0; r < 3; r++) {
+      const rad = t * 45 + r * 14;
+      cx.strokeStyle = 'rgba(150,200,255,' + Math.max(0, (1 - t) * 0.5) + ')';
+      cx.beginPath(); cx.arc(fcx, fcy, rad, 0, Math.PI * 2); cx.stroke();
+    }
+  }
+}
+
+// ============================================================
+// タイトル・オーバーレイ
+// ============================================================
+function drawTitle() {
+  cx.fillStyle = '#0a1a0a';
+  cx.fillRect(0, 0, W, H);
+
+  // 装飾: 道路
+  cx.fillStyle = PAL.road;
+  cx.fillRect(0, H * 0.55, W, 80);
+  cx.strokeStyle = PAL.roadLine;
+  cx.lineWidth = 1;
+  cx.setLineDash([12, 12]);
+  cx.beginPath(); cx.moveTo(0, H * 0.55 + 40); cx.lineTo(W, H * 0.55 + 40); cx.stroke();
+  cx.setLineDash([]);
+
+  // 装飾: 水
+  cx.fillStyle = PAL.water;
+  cx.fillRect(0, H * 0.35, W, 60);
+
+  // タイトル (影 → 本体)
+  cx.textAlign = 'center';
+  cx.textBaseline = 'middle';
+  cx.font = 'bold 48px "Courier New",monospace';
+  cx.fillStyle = PAL.frogDk;
+  cx.fillText('フロッガー', W / 2 + 3, H * 0.18 + 3);
+  cx.fillStyle = PAL.frog;
+  cx.fillText('フロッガー', W / 2, H * 0.18);
+
+  // カエルのアイコン
+  drawFrog(W / 2 - CELL / 2, H * 0.27, 0, 1.5);
+
+  // 説明
+  cx.fillStyle = PAL.text;
+  cx.font = '15px "Courier New",monospace';
+  cx.fillText('矢印キーで移動', W / 2, H * 0.66);
+  cx.fillText('車を避けろ  川に落ちるな', W / 2, H * 0.71);
+  cx.fillText('丸太と亀に乗って川を渡れ', W / 2, H * 0.76);
+
+  // 点滅
+  if (Math.floor(Date.now() / 500) % 2) {
+    cx.fillStyle = '#ffcc44';
+    cx.font = 'bold 18px "Courier New",monospace';
+    cx.fillText('SPACE / ENTER でスタート', W / 2, H * 0.87);
+  }
+
+  if (hiScore > 0) {
+    cx.fillStyle = '#999';
+    cx.font = '13px "Courier New",monospace';
+    cx.fillText('ハイスコア ' + hiScore, W / 2, H * 0.94);
+  }
+}
+
+function drawOverlay() {
+  cx.fillStyle = 'rgba(0,0,0,0.72)';
+  cx.fillRect(0, 0, W, H);
+
+  cx.textAlign = 'center';
+  cx.textBaseline = 'middle';
+  cx.fillStyle = '#cc3333';
+  cx.font = 'bold 38px "Courier New",monospace';
+  cx.fillText('ゲームオーバー', W / 2, H * 0.33);
+
+  cx.fillStyle = PAL.text;
+  cx.font = '20px "Courier New",monospace';
+  cx.fillText('スコア ' + score, W / 2, H * 0.43);
+
+  if (score >= hiScore && score > 0) {
+    cx.fillStyle = '#ffcc44';
+    cx.font = '16px "Courier New",monospace';
+    cx.fillText('ハイスコア更新', W / 2, H * 0.50);
+  }
+
+  if (Math.floor(Date.now() / 500) % 2) {
+    cx.fillStyle = PAL.text;
+    cx.font = '15px "Courier New",monospace';
+    cx.fillText('SPACE / ENTER でタイトルへ', W / 2, H * 0.63);
+  }
+}
+
+function drawClearOverlay() {
+  cx.fillStyle = 'rgba(0,0,0,0.45)';
+  cx.fillRect(0, 0, W, ROW_HUD * CELL);
+
+  const t = 1 - clearTime / CLEAR_DUR;
+  cx.globalAlpha = Math.min(1, t * 3);
+  cx.textAlign = 'center';
+  cx.textBaseline = 'middle';
+  cx.fillStyle = '#ffcc44';
+  cx.font = 'bold 34px "Courier New",monospace';
+  cx.fillText('ステージクリア', W / 2, H * 0.28);
+  cx.fillStyle = PAL.text;
+  cx.font = '18px "Courier New",monospace';
+  cx.fillText('ボーナス +1000', W / 2, H * 0.38);
+  cx.globalAlpha = 1;
+}
+
+// ============================================================
+// メインループ
+// ============================================================
+let prevTs = 0;
+
+function loop(ts) {
+  const dt = Math.min((ts - prevTs) / 1000, 0.05);
+  prevTs = ts;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

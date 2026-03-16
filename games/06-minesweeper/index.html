@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MINESWEEPER</title>
+<style>
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: #bdbdbd;
+  font-family: 'Arial', sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+#game-container {
+  background: #c0c0c0;
+  border-top: 3px solid #ffffff;
+  border-left: 3px solid #ffffff;
+  border-right: 3px solid #808080;
+  border-bottom: 3px solid #808080;
+  padding: 6px;
+}
+
+/* 難易度選択バー */
+#difficulty-bar {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.diff-btn {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: 'MS Gothic', 'Yu Gothic', sans-serif;
+  background: #c0c0c0;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #808080;
+  border-bottom: 2px solid #808080;
+  cursor: pointer;
+  text-align: center;
+  color: #000;
+}
+
+.diff-btn:active {
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+}
+
+.diff-btn.active {
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  background: #b0b0b0;
+}
+
+/* ヘッダーパネル（地雷カウンター、リセット、タイマー） */
+#header-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+  margin-bottom: 6px;
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  background: #c0c0c0;
+}
+
+/* LED風デジタル表示 */
+.led-display {
+  background: #000;
+  color: #ff0000;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 28px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  padding: 2px 4px;
+  min-width: 58px;
+  text-align: right;
+  border-top: 1px solid #808080;
+  border-left: 1px solid #808080;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  line-height: 1;
+}
+
+/* リセットボタン（顔ボタン） */
+#reset-btn {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  line-height: 36px;
+  text-align: center;
+  background: #c0c0c0;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #808080;
+  border-bottom: 2px solid #808080;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#reset-btn:active {
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+}
+
+/* 顔をCSSで描画 */
+.face {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffff00;
+  position: relative;
+  border: 1px solid #000;
+}
+
+.face .eye-left,
+.face .eye-right {
+  position: absolute;
+  top: 7px;
+  width: 3px;
+  height: 3px;
+  background: #000;
+  border-radius: 50%;
+}
+
+.face .eye-left { left: 6px; }
+.face .eye-right { right: 6px; }
+
+.face .mouth {
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* 通常の顔 - 笑顔 */
+.face-normal .mouth {
+  width: 10px;
+  height: 5px;
+  border-bottom: 2px solid #000;
+  border-radius: 0 0 5px 5px;
+}
+
+/* 押下中の顔 - 驚き */
+.face-surprised .mouth {
+  width: 6px;
+  height: 6px;
+  border: 2px solid #000;
+  border-radius: 50%;
+  background: transparent;
+  bottom: 4px;
+}
+
+/* 勝利の顔 - サングラス */
+.face-win .eye-left,
+.face-win .eye-right {
+  width: 7px;
+  height: 4px;
+  border-radius: 1px;
+  top: 6px;
+}
+.face-win .eye-left { left: 3px; }
+.face-win .eye-right { right: 3px; }
+.face-win .mouth {
+  width: 10px;
+  height: 5px;
+  border-bottom: 2px solid #000;
+  border-radius: 0 0 5px 5px;
+}
+
+/* 敗北の顔 - X目 */
+.face-dead .eye-left,
+.face-dead .eye-right {
+  width: 6px;
+  height: 6px;
+  background: transparent;
+  border-radius: 0;
+  top: 5px;
+}
+.face-dead .eye-left {
+  left: 4px;
+}
+.face-dead .eye-right {
+  right: 4px;
+}
+.face-dead .eye-left::before,
+.face-dead .eye-left::after,
+.face-dead .eye-right::before,
+.face-dead .eye-right::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 2px;
+  background: #000;
+  top: 2px;
+  left: 0;
+}
+.face-dead .eye-left::before { transform: rotate(45deg); }
+.face-dead .eye-left::after { transform: rotate(-45deg); }
+.face-dead .eye-right::before { transform: rotate(45deg); }
+.face-dead .eye-right::after { transform: rotate(-45deg); }
+
+.face-dead .mouth {
+  width: 12px;
+  height: 5px;
+  border-top: 2px solid #000;
+  border-radius: 5px 5px 0 0;
+  bottom: 4px;
+}
+
+/* グリッドコンテナ */
+#grid-container {
+  border-top: 3px solid #808080;
+  border-left: 3px solid #808080;
+  border-right: 3px solid #ffffff;
+  border-bottom: 3px solid #ffffff;
+  display: inline-block;
+  line-height: 0;
+}
+
+#grid {
+  display: grid;
+  line-height: 0;
+}
+
+/* セル共通 */
+.cell {
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+  font-weight: bold;
+  font-family: 'Arial', sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 1;
+  position: relative;
+}
+
+/* 未開封セル（3Dベベル） */
+.cell-closed {
+  background: #c0c0c0;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #808080;
+  border-bottom: 2px solid #808080;
+}
+
+.cell-closed:hover {
+  background: #d0d0d0;
+}
+
+/* 開封済みセル（フラット） */
+.cell-opened {
+  background: #c0c0c0;
+  border: 1px solid #808080;
+  cursor: default;
+}
+
+/* フラグセル */
+.cell-flagged {
+  background: #c0c0c0;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #808080;
+  border-bottom: 2px solid #808080;
+}
+
+/* 地雷セル（ゲームオーバー時） */
+.cell-mine {
+  background: #c0c0c0;
+  border: 1px solid #808080;
+  cursor: default;
+}
+
+/* 踏んだ地雷（赤背景） */
+.cell-mine-hit {
+  background: #ff0000;
+  border: 1px solid #808080;
+  cursor: default;
+}
+
+/* 不正フラグ */
+.cell-wrong-flag {
+  background: #c0c0c0;
+  border: 1px solid #808080;
+  cursor: default;
+}
+
+/* 数字の色 */
+.num-1 { color: #0000ff; }
+.num-2 { color: #008000; }
+.num-3 { color: #ff0000; }
+.num-4 { color: #000080; }
+.num-5 { color: #800000; }
+.num-6 { color: #008080; }
+.num-7 { color: #000000; }
+.num-8 { color: #808080; }
+
+/* 旗をCSSで描画 */
+.flag-marker {
+  display: inline-block;
+  position: relative;
+  width: 14px;
+  height: 16px;
+}
+
+.flag-marker .pole {
+  position: absolute;
+  right: 3px;
+  top: 1px;
+  width: 2px;
+  height: 12px;
+  background: #000;
+}
+
+.flag-marker .flag-cloth {
+  position: absolute;
+  top: 1px;
+  right: 5px;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-right: 7px solid #ff0000;
+}
+
+.flag-marker .base {
+  position: absolute;
+  bottom: 0;
+  left: 1px;
+  width: 12px;
+  height: 2px;
+  background: #000;
+}
+
+/* 地雷をCSSで描画 */
+.mine-marker {
+  display: inline-block;
+  position: relative;
+  width: 16px;
+  height: 16px;
+}
+
+.mine-marker .body {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 10px;
+  height: 10px;
+  background: #000;
+  border-radius: 50%;
+}
+
+.mine-marker .body::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 3px;
+  height: 3px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+.mine-marker .spike-h {
+  position: absolute;
+  top: 7px;
+  left: 0;
+  width: 16px;
+  height: 2px;
+  background: #000;
+}
+
+.mine-marker .spike-v {
+  position: absolute;
+  top: 0;
+  left: 7px;
+  width: 2px;
+  height: 16px;
+  background: #000;
+}
+
+.mine-marker .spike-d1 {
+  position: absolute;
+  top: 7px;
+  left: 0;
+  width: 16px;
+  height: 2px;
+  background: #000;
+  transform: rotate(45deg);
+}
+
+.mine-marker .spike-d2 {
+  position: absolute;
+  top: 7px;
+  left: 0;
+  width: 16px;
+  height: 2px;
+  background: #000;
+  transform: rotate(-45deg);
+}
+
+/* 不正フラグの X マーク */
+.wrong-x {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wrong-x::before,
+.wrong-x::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 3px;
+  background: #ff0000;
+}
+
+.wrong-x::before { transform: rotate(45deg); }
+.wrong-x::after { transform: rotate(-45deg); }
+
+/* フッター情報 */
+#footer {
+  margin-top: 4px;
+  text-align: center;
+  font-size: 10px;
+  color: #808080;
+  font-family: 'MS Gothic', 'Yu Gothic', sans-serif;
+}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="difficulty-bar">
+    <div class="diff-btn active" data-level="beginner">初級</div>
+    <div class="diff-btn" data-level="intermediate">中級</div>
+    <div class="diff-btn" data-level="expert">上級</div>
+  </div>
+  <div id="header-panel">
+    <div class="led-display" id="mine-counter">010</div>
+    <div id="reset-btn">
+      <div class="face face-normal" id="face">
+        <div class="eye-left"></div>
+        <div class="eye-right"></div>
+        <div class="mouth"></div>
+      </div>
+    </div>
+    <div class="led-display" id="timer">000</div>
+  </div>
+  <div id="grid-container">
+    <div id="grid"></div>
+  </div>
+  <div id="footer">R: リセット / 左クリック: 開く / 右クリック: 旗</div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // 難易度設定
+  const LEVELS = {
+    beginner:     { cols: 9,  rows: 9,  mines: 10 },
+    intermediate: { cols: 16, rows: 16, mines: 40 },
+    expert:       { cols: 30, rows: 16, mines: 99 }
+  };
+
+  // ゲーム状態
+  let currentLevel = 'beginner';
+  let cols = 9;
+  let rows = 9;
+  let totalMines = 10;
+  let board = [];        // 2次元配列: { mine, opened, flagged, adjacentMines }
+  let gameState = 'idle'; // idle, playing, won, lost
+  let flagCount = 0;
+  let timerValue = 0;
+  let timerInterval = null;
+  let firstClick = true;
+
+  // DOM参照
+  const gridEl = document.getElementById('grid');
+  const mineCounterEl = document.getElementById('mine-counter');
+  const timerEl = document.getElementById('timer');
+  const resetBtn = document.getElementById('reset-btn');
+  const faceEl = document.getElementById('face');
+  const diffButtons = document.querySelectorAll('.diff-btn');
+
+  // 8方向のオフセット
+  const DIRECTIONS = [
+    [-1, -1], [-1, 0], [-1, 1],
+    [0,  -1],          [0,  1],
+    [1,  -1], [1,  0], [1,  1]
+  ];
+
+  // 初期化
+  function initGame() {
+    const level = LEVELS[currentLevel];
+    cols = level.cols;
+    rows = level.rows;
+    totalMines = level.mines;
+
+    stopTimer();
+    timerValue = 0;
+    flagCount = 0;
+    gameState = 'idle';
+    firstClick = true;
+
+    // 盤面初期化
+    board = [];
+    for (let r = 0; r < rows; r++) {
+      board[r] = [];
+      for (let c = 0; c < cols; c++) {
+        board[r][c] = {
+          mine: false,
+          opened: false,
+          flagged: false,
+          adjacentMines: 0
+        };
+      }
+    }
+
+    updateMineCounter();
+    updateTimer();
+    setFace('normal');
+    renderGrid();
+  }
+
+  // 地雷配置（初回クリック後）
+  function placeMines(safeRow, safeCol) {
+    // 安全地帯: クリックしたセルとその周囲
+    const safeZone = new Set();
+    safeZone.add(safeRow * cols + safeCol);
+    for (const [dr, dc] of DIRECTIONS) {
+      const nr = safeRow + dr;
+      const nc = safeCol + dc;
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+        safeZone.add(nr * cols + nc);
+      }
+    }
+
+    let placed = 0;
+    while (placed < totalMines) {
+      const r = Math.floor(Math.random() * rows);
+      const c = Math.floor(Math.random() * cols);
+      if (!board[r][c].mine && !safeZone.has(r * cols + c)) {
+        board[r][c].mine = true;
+        placed++;
+      }
+    }
+
+    // 隣接地雷数を計算
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (board[r][c].mine) continue;
+        let count = 0;
+        for (const [dr, dc] of DIRECTIONS) {
+          const nr = r + dr;
+          const nc = c + dc;
+          if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && board[nr][nc].mine) {
+            count++;
+          }
+        }
+        board[r][c].adjacentMines = count;
+      }
+    }
+  }
+
+  // グリッド描画
+  function renderGrid() {
+    gridEl.style.gridTemplateColumns = `repeat(${cols}, 24px)`;
+    gridEl.style.gridTemplateRows = `repeat(${rows}, 24px)`;
+    gridEl.innerHTML = '';
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell cell-closed';
+        cell.dataset.row = r;
+        cell.dataset.col = c;
+
+        // 左クリック
+        cell.addEventListener('mousedown', function(e) {
+          if (e.button === 0 && gameState !== 'won' && gameState !== 'lost') {
+            setFace('surprised');
+          }
+        });
+
+        cell.addEventListener('mouseup', function(e) {
+          if (e.button === 0) {
+            handleLeftClick(r, c);
+          }
+        });
+
+        cell.addEventListener('mouseleave', function() {
+          if (gameState === 'idle' || gameState === 'playing') {
+            setFace('normal');
+          }
+        });
+
+        // 右クリック（フラグ）
+        cell.addEventListener('contextmenu', function(e) {
+          e.preventDefault();
+          handleRightClick(r, c);
+        });
+
+        gridEl.appendChild(cell);
+      }
+    }
+  }
+
+  // 左クリック処理
+  function handleLeftClick(r, c) {
+    if (gameState === 'won' || gameState === 'lost') return;
+
+    const cell = board[r][c];
+    if (cell.opened || cell.flagged) {
+      if (gameState === 'idle' || gameState === 'playing') {
+        setFace('normal');
+      }
+      return;
+    }
+
+    // 初回クリック: 地雷配置 & タイマー開始
+    if (firstClick) {
+      firstClick = false;
+      gameState = 'playing';
+      placeMines(r, c);
+      startTimer();
+    }
+
+    if (cell.mine) {
+      // 地雷を踏んだ
+      gameOver(r, c);
+      return;
+    }
+
+    // セルを開く
+    openCell(r, c);
+
+    // 勝利判定
+    if (checkWin()) {
+      winGame();
+      return;
+    }
+
+    setFace('normal');
+  }
+
+  // 右クリック処理（フラグ切替）
+  function handleRightClick(r, c) {
+    if (gameState === 'won' || gameState === 'lost') return;
+    if (board[r][c].opened) return;
+
+    // idle状態でのフラグは許可するがタイマーは開始しない
+    board[r][c].flagged = !board[r][c].flagged;
+    flagCount += board[r][c].flagged ? 1 : -1;
+
+    updateMineCounter();
+    updateCellDisplay(r, c);
+  }
+
+  // セルを開く（キュー方式フラッドフィル、スタックオーバーフロー防止）
+  function openCell(startR, startC) {
+    const queue = [[startR, startC]];
+
+    while (queue.length > 0) {
+      const [r, c] = queue.shift();
+      if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
+
+      const cell = board[r][c];
+      if (cell.opened || cell.flagged || cell.mine) continue;
+
+      cell.opened = true;
+      updateCellDisplay(r, c);
+
+      // 隣接地雷0なら周囲をキューに追加
+      if (cell.adjacentMines === 0) {
+        for (const [dr, dc] of DIRECTIONS) {
+          queue.push([r + dr, c + dc]);
+        }
+      }
+    }
+  }
+
+  // セル表示更新
+  function updateCellDisplay(r, c) {
+    const cellEl = getCellElement(r, c);
+    if (!cellEl) return;
+
+    const cell = board[r][c];
+
+    // 全クラスをリセット
+    cellEl.className = 'cell';
+    cellEl.innerHTML = '';
+
+    if (cell.opened) {
+      if (cell.mine) {
+        cellEl.classList.add('cell-mine');
+        cellEl.innerHTML = createMineHTML();
+      } else if (cell.adjacentMines > 0) {
+        cellEl.classList.add('cell-opened');
+        cellEl.textContent = cell.adjacentMines;
+        cellEl.classList.add('num-' + cell.adjacentMines);
+      } else {
+        cellEl.classList.add('cell-opened');
+      }
+    } else if (cell.flagged) {
+      cellEl.classList.add('cell-flagged');
+      cellEl.innerHTML = createFlagHTML();
+    } else {
+      cellEl.classList.add('cell-closed');
+    }
+  }
+
+  // 旗のHTMLを生成
+  function createFlagHTML() {
+    return '<span class="flag-marker">' +
+      '<span class="pole"></span>' +
+      '<span class="flag-cloth"></span>' +
+      '<span class="base"></span>' +
+    '</span>';
+  }
+
+  // 地雷のHTMLを生成
+  function createMineHTML() {
+    return '<span class="mine-marker">' +
+      '<span class="spike-h"></span>' +
+      '<span class="spike-v"></span>' +
+      '<span class="spike-d1"></span>' +
+      '<span class="spike-d2"></span>' +
+      '<span class="body"></span>' +
+    '</span>';
+  }
+
+  // 不正フラグのHTMLを生成
+  function createWrongFlagHTML() {
+    return createMineHTML() + '<span class="wrong-x"></span>';
+  }
+
+  // セルDOM要素を取得
+  function getCellElement(r, c) {
+    const index = r * cols + c;
+    return gridEl.children[index] || null;
+  }
+
+  // ゲームオーバー
+  function gameOver(hitRow, hitCol) {
+    gameState = 'lost';
+    stopTimer();
+    setFace('dead');
+
+    // 全セルを公開
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = board[r][c];
+        const cellEl = getCellElement(r, c);
+        if (!cellEl) continue;
+
+        if (r === hitRow && c === hitCol) {
+          // 踏んだ地雷
+          cellEl.className = 'cell cell-mine-hit';
+          cellEl.innerHTML = createMineHTML();
+        } else if (cell.mine && !cell.flagged) {
+          // 未発見の地雷
+          cellEl.className = 'cell cell-mine';
+          cellEl.innerHTML = createMineHTML();
+        } else if (!cell.mine && cell.flagged) {
+          // 不正フラグ
+          cellEl.className = 'cell cell-wrong-flag';
+          cellEl.innerHTML = createWrongFlagHTML();
+        }
+        // 正しいフラグや開封済みセルはそのまま
+      }
+    }
+  }
+
+  // 勝利
+  function winGame() {
+    gameState = 'won';
+    stopTimer();
+    setFace('win');
+
+    // 残りのフラグを自動配置
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (board[r][c].mine && !board[r][c].flagged) {
+          board[r][c].flagged = true;
+          updateCellDisplay(r, c);
+        }
+      }
+    }
+    flagCount = totalMines;
+    updateMineCounter();
+  }
+
+  // 勝利判定
+  function checkWin() {
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = board[r][c];
+        if (!cell.mine && !cell.opened) return false;
+      }
+    }
+    return true;
+  }
+
+  // 顔の設定
+  function setFace(state) {
+    faceEl.className = 'face face-' + state;
+  }
+
+  // 地雷カウンター更新
+  function updateMineCounter() {
+    const remaining = totalMines - flagCount;
+    const display = Math.max(-99, Math.min(999, remaining));
+    if (display < 0) {
+      mineCounterEl.textContent = '-' + String(Math.abs(display)).padStart(2, '0');
+    } else {
+      mineCounterEl.textContent = String(display).padStart(3, '0');
+    }
+  }
+
+  // タイマー更新
+  function updateTimer() {
+    const display = Math.min(999, timerValue);
+    timerEl.textContent = String(display).padStart(3, '0');
+  }
+
+  // タイマー開始
+  function startTimer() {
+    if (timerInterval) return;
+    timerValue = 0;
+    updateTimer();
+    timerInterval = setInterval(function() {
+      timerValue++;
+      updateTimer();
+      if (timerValue >= 999) {
+        stopTimer();
+      }
+    }, 1000);
+  }
+
+  // タイマー停止
+  function stopTimer() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  // 難易度変更
+  diffButtons.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      const level = this.dataset.level;
+      if (level === currentLevel && gameState === 'idle') return;
+
+      currentLevel = level;
+      diffButtons.forEach(function(b) { b.classList.remove('active'); });
+      this.classList.add('active');
+      initGame();
+    });
+  });
+
+  // リセットボタン
+  resetBtn.addEventListener('click', function() {
+    initGame();
+  });
+
+  // Rキーでリセット
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'r' || e.key === 'R') {
+      initGame();
+    }
+  });
+
+  // 右クリックメニュー無効化（グリッド外でも）
+  document.getElementById('game-container').addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+  });
+
+  // マウスアップ時に顔を戻す（グリッド外でマウスを離した場合）
+  document.addEventListener('mouseup', function() {
+    if (gameState === 'idle' || gameState === 'playing') {
+      setFace('normal');
+    }
+  });
+
+  // ゲーム開始
+  initGame();
+
+})();
+</script>
+</body>
+</html>

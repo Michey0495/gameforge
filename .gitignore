@@ -3,3 +3,5 @@ dist/
 .DS_Store
 *.local
 portal/public/games
+.vercel
+.env*.local

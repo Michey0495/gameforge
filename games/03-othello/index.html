@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Othello - オセロ</title>
+<style>
+  *, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  :root {
+    --board-green: #1a6b1a;
+    --board-green-light: #228b22;
+    --board-border: #0f4f0f;
+    --bg: #f5f5f0;
+    --text: #262626;
+    --text-muted: #6b6b6b;
+    --panel-bg: #ffffff;
+    --panel-border: #e0e0e0;
+    --accent: #1a5c1a;
+    --cell-size: 60px;
+  }
+
+  body {
+    font-family: "Yu Gothic", "Hiragino Sans", "Meiryo", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .game-title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+
+  .game-container {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .side-panel {
+    width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .panel-card {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .panel-card-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .score-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+  }
+
+  .score-stone {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .score-stone.black {
+    background: radial-gradient(circle at 35% 35%, #555, #111 60%, #000);
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.4);
+  }
+
+  .score-stone.white {
+    background: radial-gradient(circle at 35% 35%, #fff, #e8e8e8 60%, #ccc);
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+    border: 1px solid #d0d0d0;
+  }
+
+  .score-label {
+    font-size: 13px;
+    color: var(--text);
+    flex: 1;
+  }
+
+  .score-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    min-width: 28px;
+    text-align: right;
+  }
+
+  .score-row.active .score-label {
+    font-weight: 600;
+  }
+
+  .score-row.active {
+    position: relative;
+  }
+
+  .score-row.active::before {
+    content: "";
+    position: absolute;
+    left: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 24px;
+    background: var(--accent);
+  }
+
+  .turn-indicator {
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+    padding: 10px 0;
+    color: var(--text);
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .difficulty-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .difficulty-btn {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    padding: 8px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    text-align: left;
+  }
+
+  .difficulty-btn:hover {
+    background: #f0f0f0;
+  }
+
+  .difficulty-btn.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  .action-btn {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    padding: 10px 16px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s;
+    text-align: center;
+    font-weight: 500;
+  }
+
+  .action-btn:hover {
+    background: #f0f0f0;
+  }
+
+  .board-wrapper {
+    position: relative;
+    padding: 8px;
+    background: var(--board-border);
+    box-shadow: 4px 4px 16px rgba(0,0,0,0.25), inset 0 0 8px rgba(0,0,0,0.3);
+  }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(8, var(--cell-size));
+    grid-template-rows: repeat(8, var(--cell-size));
+    gap: 1px;
+    background: #0a3a0a;
+  }
+
+  .cell {
+    width: var(--cell-size);
+    height: var(--cell-size);
+    background: var(--board-green);
+    position: relative;
+    cursor: default;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .cell.clickable {
+    cursor: pointer;
+  }
+
+  .cell.clickable:hover {
+    background: var(--board-green-light);
+  }
+
+  .cell.last-move::after {
+    content: "";
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 200, 0, 0.7);
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  .valid-indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .stone-container {
+    width: 48px;
+    height: 48px;
+    perspective: 200px;
+    position: absolute;
+    z-index: 2;
+  }
+
+  .stone {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    transition: transform 0.4s ease-in-out;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+  }
+
+  .stone-black {
+    background: radial-gradient(circle at 38% 35%, #555, #1a1a1a 55%, #000);
+    box-shadow: 2px 2px 6px rgba(0,0,0,0.5);
+  }
+
+  .stone-white {
+    background: radial-gradient(circle at 38% 35%, #ffffff, #eaeaea 55%, #c5c5c5);
+    box-shadow: 2px 2px 6px rgba(0,0,0,0.25);
+    border: 1px solid #bbb;
+  }
+
+  .stone-container.flipping .stone {
+    animation: flipStone 0.5s ease-in-out forwards;
+  }
+
+  .stone-container.flipping-to-black .stone-white {
+    animation: flipOut 0.25s ease-in forwards;
+  }
+
+  .stone-container.flipping-to-black .stone-black {
+    animation: flipIn 0.25s ease-out 0.25s forwards;
+    opacity: 0;
+  }
+
+  .stone-container.flipping-to-white .stone-black {
+    animation: flipOut 0.25s ease-in forwards;
+  }
+
+  .stone-container.flipping-to-white .stone-white {
+    animation: flipIn 0.25s ease-out 0.25s forwards;
+    opacity: 0;
+  }
+
+  @keyframes flipOut {
+    0% {
+      transform: scaleX(1) scaleY(1);
+      opacity: 1;
+    }
+    100% {
+      transform: scaleX(0) scaleY(1.1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes flipIn {
+    0% {
+      transform: scaleX(0) scaleY(1.1);
+      opacity: 1;
+    }
+    100% {
+      transform: scaleX(1) scaleY(1);
+      opacity: 1;
+    }
+  }
+
+  .stone-container.placing {
+    animation: placeStone 0.2s ease-out forwards;
+  }
+
+  @keyframes placeStone {
+    0% {
+      transform: scale(0);
+      opacity: 0;
+    }
+    60% {
+      transform: scale(1.1);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .notification {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-80px);
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    padding: 12px 24px;
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    transition: transform 0.3s ease;
+    white-space: nowrap;
+  }
+
+  .notification.visible {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .result-dialog {
+    background: var(--panel-bg);
+    padding: 32px 48px;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    max-width: 360px;
+  }
+
+  .result-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .result-score {
+    font-size: 36px;
+    font-weight: 700;
+    margin: 16px 0;
+    color: var(--text);
+    letter-spacing: 2px;
+  }
+
+  .result-message {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+  }
+
+  .result-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 32px;
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity 0.15s;
+  }
+
+  .result-btn:hover {
+    opacity: 0.85;
+  }
+
+  .thinking-dot {
+    display: inline-block;
+    animation: dotPulse 1.2s infinite;
+  }
+
+  .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes dotPulse {
+    0%, 80%, 100% { opacity: 0.2; }
+    40% { opacity: 1; }
+  }
+
+  .star-points .cell:nth-child(1)::before,
+  .cell[data-star]::before {
+    content: "";
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #0a3a0a;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .footer-note {
+    margin-top: 16px;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  @media (max-width: 720px) {
+    :root {
+      --cell-size: 44px;
+    }
+
+    .game-container {
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .side-panel {
+      width: 100%;
+      max-width: 370px;
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+
+    .side-panel .panel-card {
+      flex: 1;
+      min-width: 140px;
+    }
+
+    .stone-container {
+      width: 36px;
+      height: 36px;
+    }
+
+    .valid-indicator {
+      width: 14px;
+      height: 14px;
+    }
+
+    .cell.last-move::after {
+      width: 6px;
+      height: 6px;
+    }
+  }
+
+  @media (max-width: 420px) {
+    :root {
+      --cell-size: 38px;
+    }
+
+    .stone-container {
+      width: 30px;
+      height: 30px;
+    }
+
+    .valid-indicator {
+      width: 12px;
+      height: 12px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="game-title">OTHELLO</div>
+
+<div class="game-container">
+  <div class="side-panel" id="panel-left">
+    <div class="panel-card">
+      <div class="panel-card-title">SCORE</div>
+      <div class="score-row active" id="score-black-row">
+        <div class="score-stone black"></div>
+        <span class="score-label">あなた</span>
+        <span class="score-value" id="score-black">2</span>
+      </div>
+      <div class="score-row" id="score-white-row">
+        <div class="score-stone white"></div>
+        <span class="score-label">CPU</span>
+        <span class="score-value" id="score-white">2</span>
+      </div>
+    </div>
+
+    <div class="panel-card">
+      <div class="panel-card-title">STATUS</div>
+      <div class="turn-indicator" id="turn-indicator">
+        あなたの番
+      </div>
+    </div>
+
+    <div class="panel-card">
+      <div class="panel-card-title">AI LEVEL</div>
+      <div class="difficulty-group">
+        <button class="difficulty-btn" data-level="easy" onclick="setDifficulty('easy')">弱</button>
+        <button class="difficulty-btn active" data-level="medium" onclick="setDifficulty('medium')">中</button>
+        <button class="difficulty-btn" data-level="hard" onclick="setDifficulty('hard')">強</button>
+      </div>
+    </div>
+
+    <button class="action-btn" onclick="restartGame()">新しく始める</button>
+  </div>
+
+  <div class="board-wrapper">
+    <div class="board" id="board"></div>
+  </div>
+</div>
+
+<div class="footer-note">R キーでリスタート</div>
+
+<div class="notification" id="notification"></div>
+
+<div class="overlay" id="overlay">
+  <div class="result-dialog">
+    <div class="result-title" id="result-title"></div>
+    <div class="result-score" id="result-score"></div>
+    <div class="result-message" id="result-message"></div>
+    <button class="result-btn" onclick="restartGame()">もう一度</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // --- 定数 ---
+  const BLACK = 1;
+  const WHITE = -1;
+  const EMPTY = 0;
+  const SIZE = 8;
+
+  const DIRECTIONS = [
+    [-1, -1], [-1, 0], [-1, 1],
+    [0, -1],           [0, 1],
+    [1, -1],  [1, 0],  [1, 1]
+  ];
+
+  // 位置評価テーブル（強AI用）
+  const POSITION_WEIGHTS = [
+    [ 100, -20,  10,   5,   5,  10, -20,  100],
+    [ -20, -50,  -2,  -2,  -2,  -2, -50,  -20],
+    [  10,  -2,   8,   1,   1,   8,  -2,   10],
+    [   5,  -2,   1,   0,   0,   1,  -2,    5],
+    [   5,  -2,   1,   0,   0,   1,  -2,    5],
+    [  10,  -2,   8,   1,   1,   8,  -2,   10],
+    [ -20, -50,  -2,  -2,  -2,  -2, -50,  -20],
+    [ 100, -20,  10,   5,   5,  10, -20,  100]
+  ];
+
+  // --- ゲーム状態 ---
+  let board = [];
+  let currentPlayer = BLACK;
+  let difficulty = 'medium';
+  let lastMove = null;
+  let gameOver = false;
+  let isThinking = false;
+  let consecutivePasses = 0;
+
+  // --- DOM要素 ---
+  const boardEl = document.getElementById('board');
+  const scoreBlackEl = document.getElementById('score-black');
+  const scoreWhiteEl = document.getElementById('score-white');
+  const scoreBlackRow = document.getElementById('score-black-row');
+  const scoreWhiteRow = document.getElementById('score-white-row');
+  const turnIndicatorEl = document.getElementById('turn-indicator');
+  const notificationEl = document.getElementById('notification');
+  const overlayEl = document.getElementById('overlay');
+  const resultTitleEl = document.getElementById('result-title');
+  const resultScoreEl = document.getElementById('result-score');
+  const resultMessageEl = document.getElementById('result-message');
+
+  // --- 盤面ロジック ---
+  function createBoard() {
+    const b = [];
+    for (let r = 0; r < SIZE; r++) {
+      b[r] = [];
+      for (let c = 0; c < SIZE; c++) {
+        b[r][c] = EMPTY;
+      }
+    }
+    // 初期配置
+    b[3][3] = WHITE;
+    b[3][4] = BLACK;
+    b[4][3] = BLACK;
+    b[4][4] = WHITE;
+    return b;
+  }
+
+  function inBounds(r, c) {
+    return r >= 0 && r < SIZE && c >= 0 && c < SIZE;
+  }
+
+  function getFlips(b, r, c, player) {
+    if (b[r][c] !== EMPTY) return [];
+    const opponent = -player;
+    const allFlips = [];
+
+    for (const [dr, dc] of DIRECTIONS) {
+      const flips = [];
+      let nr = r + dr;
+      let nc = c + dc;
+
+      while (inBounds(nr, nc) && b[nr][nc] === opponent) {
+        flips.push([nr, nc]);
+        nr += dr;
+        nc += dc;
+      }
+
+      if (flips.length > 0 && inBounds(nr, nc) && b[nr][nc] === player) {
+        allFlips.push(...flips);
+      }
+    }
+
+    return allFlips;
+  }
+
+  function getValidMoves(b, player) {
+    const moves = [];
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const flips = getFlips(b, r, c, player);
+        if (flips.length > 0) {
+          moves.push({ r, c, flips });
+        }
+      }
+    }
+    return moves;
+  }
+
+  function applyMove(b, r, c, player, flips) {
+    const newBoard = b.map(row => [...row]);
+    newBoard[r][c] = player;
+    for (const [fr, fc] of flips) {
+      newBoard[fr][fc] = player;
+    }
+    return newBoard;
+  }
+
+  function countStones(b) {
+    let black = 0, white = 0;
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        if (b[r][c] === BLACK) black++;
+        else if (b[r][c] === WHITE) white++;
+      }
+    }
+    return { black, white };
+  }
+
+  // --- AI ---
+  function aiEasy(moves) {
+    return moves[Math.floor(Math.random() * moves.length)];
+  }
+
+  function aiMedium(moves) {
+    const corners = [[0,0],[0,7],[7,0],[7,7]];
+
+    // コーナーがあれば取る
+    for (const move of moves) {
+      if (corners.some(([cr, cc]) => move.r === cr && move.c === cc)) {
+        return move;
+      }
+    }
+
+    // 最大フリップ数で選ぶ（コーナー隣接は避ける）
+    const cSquares = [
+      [0,1],[1,0],[1,1],
+      [0,6],[1,6],[1,7],
+      [6,0],[6,1],[7,1],
+      [6,6],[6,7],[7,6]
+    ];
+
+    const safeMoves = moves.filter(m =>
+      !cSquares.some(([sr, sc]) => m.r === sr && m.c === sc)
+    );
+
+    const candidates = safeMoves.length > 0 ? safeMoves : moves;
+    candidates.sort((a, b) => b.flips.length - a.flips.length);
+    return candidates[0];
+  }
+
+  function aiHard(moves, b) {
+    // minimax的な1手先読み + 位置評価
+    let bestScore = -Infinity;
+    let bestMove = moves[0];
+
+    for (const move of moves) {
+      const newBoard = applyMove(b, move.r, move.c, WHITE, move.flips);
+      let score = evaluateBoard(newBoard, WHITE);
+
+      // 2手先まで読む：相手の最善手後の評価
+      const opponentMoves = getValidMoves(newBoard, BLACK);
+      if (opponentMoves.length > 0) {
+        let worstOpponentScore = Infinity;
+        for (const oMove of opponentMoves) {
+          const afterOpponent = applyMove(newBoard, oMove.r, oMove.c, BLACK, oMove.flips);
+          const evalScore = evaluateBoard(afterOpponent, WHITE);
+          if (evalScore < worstOpponentScore) {
+            worstOpponentScore = evalScore;
+          }
+        }
+        score = worstOpponentScore;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = move;
+      }
+    }
+
+    return bestMove;
+  }
+
+  function evaluateBoard(b, player) {
+    let score = 0;
+    const counts = countStones(b);
+
+    // 位置評価
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        if (b[r][c] === player) {
+          score += POSITION_WEIGHTS[r][c];
+        } else if (b[r][c] === -player) {
+          score -= POSITION_WEIGHTS[r][c];
+        }
+      }
+    }
+
+    // 着手可能数（モビリティ）
+    const myMoves = getValidMoves(b, player).length;
+    const opMoves = getValidMoves(b, -player).length;
+    score += (myMoves - opMoves) * 5;
+
+    // 確定石（コーナーから延びる辺の連続石）
+    score += countStableStones(b, player) * 15;
+    score -= countStableStones(b, -player) * 15;
+
+    // 終盤は石数重視
+    const totalStones = counts.black + counts.white;
+    if (totalStones > 50) {
+      const myStones = player === WHITE ? counts.white : counts.black;
+      const opStones = player === WHITE ? counts.black : counts.white;
+      score += (myStones - opStones) * 3;
+    }
+
+    return score;
+  }
+
+  function countStableStones(b, player) {
+    let stable = 0;
+    const corners = [[0,0],[0,7],[7,0],[7,7]];
+
+    for (const [cr, cc] of corners) {
+      if (b[cr][cc] !== player) continue;
+      stable++;
+
+      // 辺に沿って確定石を数える
+      const edgeDirs = [];
+      if (cr === 0) edgeDirs.push([0, cc === 0 ? 1 : -1]);
+      if (cr === 7) edgeDirs.push([0, cc === 0 ? 1 : -1]);
+      if (cc === 0) edgeDirs.push([cr === 0 ? 1 : -1, 0]);
+      if (cc === 7) edgeDirs.push([cr === 0 ? 1 : -1, 0]);
+
+      for (const [dr, dc] of edgeDirs) {
+        let nr = cr + dr;
+        let nc = cc + dc;
+        while (inBounds(nr, nc) && b[nr][nc] === player) {
+          stable++;
+          nr += dr;
+          nc += dc;
+        }
+      }
+    }
+
+    return stable;
+  }
+
+  function getAIMove(b, moves) {
+    switch (difficulty) {
+      case 'easy': return aiEasy(moves);
+      case 'medium': return aiMedium(moves);
+      case 'hard': return aiHard(moves, b);
+      default: return aiMedium(moves);
+    }
+  }
+
+  // --- 描画 ---
+  function renderBoard() {
+    boardEl.innerHTML = '';
+
+    const validMoves = gameOver ? [] : getValidMoves(board, currentPlayer);
+    const isPlayerTurn = currentPlayer === BLACK && !isThinking;
+
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.row = r;
+        cell.dataset.col = c;
+
+        // 星点（角から2マス内側の4点）
+        if ((r === 2 || r === 6) && (c === 2 || c === 6)) {
+          cell.dataset.star = 'true';
+        }
+
+        // 最後の手のハイライト
+        if (lastMove && lastMove.r === r && lastMove.c === c) {
+          cell.classList.add('last-move');
+        }
+
+        // 石の描画
+        if (board[r][c] !== EMPTY) {
+          const container = document.createElement('div');
+          container.className = 'stone-container';
+          container.id = `stone-${r}-${c}`;
+
+          const stone = document.createElement('div');
+          stone.className = board[r][c] === BLACK ? 'stone stone-black' : 'stone stone-white';
+          container.appendChild(stone);
+
+          cell.appendChild(container);
+        }
+
+        // 有効手の表示（プレイヤーの番のみ）
+        if (isPlayerTurn) {
+          const isValid = validMoves.some(m => m.r === r && m.c === c);
+          if (isValid) {
+            const indicator = document.createElement('div');
+            indicator.className = 'valid-indicator';
+            cell.appendChild(indicator);
+            cell.classList.add('clickable');
+            cell.addEventListener('click', () => handlePlayerMove(r, c));
+          }
+        }
+
+        boardEl.appendChild(cell);
+      }
+    }
+  }
+
+  function updateScores() {
+    const { black, white } = countStones(board);
+    scoreBlackEl.textContent = black;
+    scoreWhiteEl.textContent = white;
+  }
+
+  function updateTurnIndicator() {
+    if (gameOver) {
+      turnIndicatorEl.textContent = '終了';
+      scoreBlackRow.classList.remove('active');
+      scoreWhiteRow.classList.remove('active');
+      return;
+    }
+    if (isThinking) {
+      turnIndicatorEl.innerHTML =
+        'CPU思考中' +
+        '<span class="thinking-dot">.</span>' +
+        '<span class="thinking-dot">.</span>' +
+        '<span class="thinking-dot">.</span>';
+      scoreBlackRow.classList.remove('active');
+      scoreWhiteRow.classList.add('active');
+      return;
+    }
+    if (currentPlayer === BLACK) {
+      turnIndicatorEl.textContent = 'あなたの番';
+      scoreBlackRow.classList.add('active');
+      scoreWhiteRow.classList.remove('active');
+    } else {
+      turnIndicatorEl.textContent = 'CPUの番';
+      scoreBlackRow.classList.remove('active');
+      scoreWhiteRow.classList.add('active');
+    }
+  }
+
+  // --- アニメーション ---
+  function animatePlace(r, c) {
+    return new Promise(resolve => {
+      requestAnimationFrame(() => {
+        const container = document.getElementById(`stone-${r}-${c}`);
+        if (container) {
+          container.classList.add('placing');
+          container.addEventListener('animationend', resolve, { once: true });
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  function animateFlips(flips, toColor) {
+    return new Promise(resolve => {
+      if (flips.length === 0) {
+        resolve();
+        return;
+      }
+
+      let completed = 0;
+      const flipClass = toColor === BLACK ? 'flipping-to-black' : 'flipping-to-white';
+
+      flips.forEach((flip, index) => {
+        const [fr, fc] = flip;
+        const container = document.getElementById(`stone-${fr}-${fc}`);
+        if (!container) {
+          completed++;
+          if (completed === flips.length) resolve();
+          return;
+        }
+
+        setTimeout(() => {
+          // 石を差し替える前のアニメ
+          container.classList.add(flipClass);
+
+          // 白→黒、または黒→白の石を追加
+          const existingStone = container.querySelector('.stone');
+          const newStone = document.createElement('div');
+          newStone.className = toColor === BLACK ? 'stone stone-black' : 'stone stone-white';
+          container.appendChild(newStone);
+
+          setTimeout(() => {
+            // アニメ終了後、古い石を除去
+            if (existingStone) existingStone.remove();
+            container.classList.remove(flipClass);
+            container.id = `stone-${fr}-${fc}`;
+
+            completed++;
+            if (completed === flips.length) resolve();
+          }, 500);
+        }, index * 50); // 順番にフリップ
+      });
+    });
+  }
+
+  // --- 通知 ---
+  let notifTimeout = null;
+
+  function showNotification(text, duration) {
+    const ms = duration || 2000;
+    notificationEl.textContent = text;
+    notificationEl.classList.add('visible');
+
+    if (notifTimeout) clearTimeout(notifTimeout);
+    notifTimeout = setTimeout(() => {
+      notificationEl.classList.remove('visible');
+    }, ms);
+  }
+
+  // --- ゲーム結果 ---
+  function showResult() {
+    const { black, white } = countStones(board);
+    const diff = Math.abs(black - white);
+
+    resultScoreEl.textContent = black + ' - ' + white;
+
+    if (black > white) {
+      resultTitleEl.textContent = '勝利';
+      resultMessageEl.textContent = diff + '石差で勝ちました';
+    } else if (white > black) {
+      resultTitleEl.textContent = '敗北';
+      resultMessageEl.textContent = diff + '石差で負けました';
+    } else {
+      resultTitleEl.textContent = '引き分け';
+      resultMessageEl.textContent = '同数で終了';
+    }
+
+    setTimeout(() => {
+      overlayEl.classList.add('visible');
+    }, 600);
+  }
+
+  // --- ゲーム進行 ---
+  async function handlePlayerMove(r, c) {
+    if (gameOver || isThinking || currentPlayer !== BLACK) return;
+
+    const flips = getFlips(board, r, c, BLACK);
+    if (flips.length === 0) return;
+
+    // 石を置く
+    board[r][c] = BLACK;
+    lastMove = { r, c };
+    consecutivePasses = 0;
+
+    renderBoard();
+    updateScores();
+    await animatePlace(r, c);
+
+    // フリップ
+    for (const [fr, fc] of flips) {
+      board[fr][fc] = BLACK;
+    }
+    renderBoard();
+    updateScores();
+    await animateFlips(flips, BLACK);
+
+    // 次の手番へ
+    currentPlayer = WHITE;
+    updateTurnIndicator();
+
+    await nextTurn();
+  }
+
+  async function handleAIMove() {
+    if (gameOver) return;
+
+    const moves = getValidMoves(board, WHITE);
+    if (moves.length === 0) {
+      // パス
+      consecutivePasses++;
+      if (consecutivePasses >= 2) {
+        endGame();
+        return;
+      }
+      showNotification('CPUはパスしました');
+      currentPlayer = BLACK;
+      updateTurnIndicator();
+      await nextTurn();
+      return;
+    }
+
+    consecutivePasses = 0;
+    isThinking = true;
+    updateTurnIndicator();
+    renderBoard();
+
+    // 思考の間を演出
+    const thinkTime = difficulty === 'easy' ? 400 : difficulty === 'medium' ? 700 : 1000;
+
+    await new Promise(resolve => setTimeout(resolve, thinkTime));
+
+    const move = getAIMove(board, moves);
+    isThinking = false;
+
+    // 石を置く
+    board[move.r][move.c] = WHITE;
+    lastMove = { r: move.r, c: move.c };
+
+    renderBoard();
+    updateScores();
+    await animatePlace(move.r, move.c);
+
+    // フリップ
+    for (const [fr, fc] of move.flips) {
+      board[fr][fc] = WHITE;
+    }
+    renderBoard();
+    updateScores();
+    await animateFlips(move.flips, WHITE);
+
+    // 次の手番へ
+    currentPlayer = BLACK;
+    updateTurnIndicator();
+
+    await nextTurn();
+  }
+
+  async function nextTurn() {
+    if (gameOver) return;
+
+    // 盤面が埋まっていたら即終了
+    if (isBoardFull()) {
+      endGame();
+      return;
+    }
+
+    const moves = getValidMoves(board, currentPlayer);
+
+    if (moves.length === 0) {
+      // 手がない場合
+      consecutivePasses++;
+
+      if (consecutivePasses >= 2) {
+        endGame();
+        return;
+      }
+
+      if (currentPlayer === BLACK) {
+        showNotification('置ける場所がありません -- パス');
+        currentPlayer = WHITE;
+        updateTurnIndicator();
+        await new Promise(r => setTimeout(r, 1200));
+        await handleAIMove();
+      } else {
+        showNotification('CPUはパスしました');
+        currentPlayer = BLACK;
+        updateTurnIndicator();
+        renderBoard();
+      }
+      return;
+    }
+
+    // 有効手がある
+    consecutivePasses = 0;
+
+    if (currentPlayer === BLACK) {
+      renderBoard();
+    } else {
+      await handleAIMove();
+    }
+  }
+
+  function endGame() {
+    gameOver = true;
+    updateTurnIndicator();
+    renderBoard();
+    updateScores();
+    showResult();
+  }
+
+  function isBoardFull() {
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        if (board[r][c] === EMPTY) return false;
+      }
+    }
+    return true;
+  }
+
+  // --- 難易度設定 ---
+  window.setDifficulty = function(level) {
+    difficulty = level;
+    document.querySelectorAll('.difficulty-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.level === level);
+    });
+  };
+
+  // --- リスタート ---
+  window.restartGame = function() {
+    board = createBoard();
+    currentPlayer = BLACK;
+    lastMove = null;
+    gameOver = false;
+    isThinking = false;
+    consecutivePasses = 0;
+
+    overlayEl.classList.remove('visible');
+    notificationEl.classList.remove('visible');
+
+    renderBoard();
+    updateScores();
+    updateTurnIndicator();
+  };
+
+  // --- キーボード ---
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'r' || e.key === 'R') {
+      // テキスト入力中は無視
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      restartGame();
+    }
+  });
+
+  // --- 初期化 ---
+  restartGame();
+
+})();
+</script>
+</body>
+</html>

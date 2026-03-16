@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <rect width="800" height="600" fill="#0a0a1a"/>
+
+  <!-- UI上部 -->
+  <text x="30" y="30" fill="#aaa" font-family="monospace" font-size="13">SCORE</text>
+  <text x="30" y="52" fill="#fff" font-family="monospace" font-size="20" font-weight="bold">2650</text>
+  <text x="350" y="30" fill="#aaa" font-family="monospace" font-size="13">STAGE</text>
+  <text x="350" y="52" fill="#fff" font-family="monospace" font-size="20" font-weight="bold">2</text>
+  <text x="650" y="30" fill="#aaa" font-family="monospace" font-size="13">LIVES</text>
+  <!-- 残機をボールで表示 -->
+  <circle cx="660" cy="48" r="5" fill="#fff"/>
+  <circle cx="678" cy="48" r="5" fill="#fff"/>
+  <circle cx="696" cy="48" r="5" fill="#fff"/>
+
+  <!-- ブロック行1: 赤 (一部壊れている) -->
+  <g>
+    <rect x="45" y="80" width="80" height="22" fill="#e74c3c" stroke="#c0392b" stroke-width="1"/>
+    <rect x="130" y="80" width="80" height="22" fill="#e74c3c" stroke="#c0392b" stroke-width="1"/>
+    <!-- 215は壊れている(空き) -->
+    <rect x="300" y="80" width="80" height="22" fill="#e74c3c" stroke="#c0392b" stroke-width="1"/>
+    <rect x="385" y="80" width="80" height="22" fill="#e74c3c" stroke="#c0392b" stroke-width="1"/>
+    <!-- 470は壊れている -->
+    <rect x="555" y="80" width="80" height="22" fill="#e74c3c" stroke="#c0392b" stroke-width="1"/>
+    <rect x="640" y="80" width="80" height="22" fill="#e74c3c" stroke="#c0392b" stroke-width="1"/>
+  </g>
+
+  <!-- ブロック行2: オレンジ -->
+  <g>
+    <rect x="45" y="107" width="80" height="22" fill="#e67e22" stroke="#d35400" stroke-width="1"/>
+    <rect x="130" y="107" width="80" height="22" fill="#e67e22" stroke="#d35400" stroke-width="1"/>
+    <rect x="215" y="107" width="80" height="22" fill="#e67e22" stroke="#d35400" stroke-width="1"/>
+    <rect x="300" y="107" width="80" height="22" fill="#e67e22" stroke="#d35400" stroke-width="1"/>
+    <rect x="385" y="107" width="80" height="22" fill="#e67e22" stroke="#d35400" stroke-width="1"/>
+    <rect x="470" y="107" width="80" height="22" fill="#e67e22" stroke="#d35400" stroke-width="1"/>
+    <rect x="555" y="107" width="80" height="22" fill="#e67e22" stroke="#d35400" stroke-width="1"/>
+    <rect x="640" y="107" width="80" height="22" fill="#e67e22" stroke="#d35400" stroke-width="1"/>
+  </g>
+
+  <!-- ブロック行3: 黄 (一部ヒビ) -->
+  <g>
+    <rect x="45" y="134" width="80" height="22" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+    <rect x="130" y="134" width="80" height="22" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+    <rect x="215" y="134" width="80" height="22" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+    <rect x="300" y="134" width="80" height="22" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+    <rect x="385" y="134" width="80" height="22" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+    <rect x="470" y="134" width="80" height="22" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+    <rect x="555" y="134" width="80" height="22" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+    <rect x="640" y="134" width="80" height="22" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+  </g>
+
+  <!-- ブロック行4: 緑 -->
+  <g>
+    <rect x="45" y="161" width="80" height="22" fill="#27ae60" stroke="#1e8449" stroke-width="1"/>
+    <rect x="130" y="161" width="80" height="22" fill="#27ae60" stroke="#1e8449" stroke-width="1"/>
+    <rect x="215" y="161" width="80" height="22" fill="#27ae60" stroke="#1e8449" stroke-width="1"/>
+    <rect x="300" y="161" width="80" height="22" fill="#27ae60" stroke="#1e8449" stroke-width="1"/>
+    <rect x="385" y="161" width="80" height="22" fill="#27ae60" stroke="#1e8449" stroke-width="1"/>
+    <rect x="470" y="161" width="80" height="22" fill="#27ae60" stroke="#1e8449" stroke-width="1"/>
+    <rect x="555" y="161" width="80" height="22" fill="#27ae60" stroke="#1e8449" stroke-width="1"/>
+    <rect x="640" y="161" width="80" height="22" fill="#27ae60" stroke="#1e8449" stroke-width="1"/>
+  </g>
+
+  <!-- ブロック行5: シアン -->
+  <g>
+    <rect x="45" y="188" width="80" height="22" fill="#2980b9" stroke="#1a5276" stroke-width="1"/>
+    <rect x="130" y="188" width="80" height="22" fill="#2980b9" stroke="#1a5276" stroke-width="1"/>
+    <rect x="215" y="188" width="80" height="22" fill="#2980b9" stroke="#1a5276" stroke-width="1"/>
+    <rect x="300" y="188" width="80" height="22" fill="#2980b9" stroke="#1a5276" stroke-width="1"/>
+    <rect x="385" y="188" width="80" height="22" fill="#2980b9" stroke="#1a5276" stroke-width="1"/>
+    <rect x="470" y="188" width="80" height="22" fill="#2980b9" stroke="#1a5276" stroke-width="1"/>
+    <rect x="555" y="188" width="80" height="22" fill="#2980b9" stroke="#1a5276" stroke-width="1"/>
+    <rect x="640" y="188" width="80" height="22" fill="#2980b9" stroke="#1a5276" stroke-width="1"/>
+  </g>
+
+  <!-- 耐久度2のブロック（少し明るい + ヒビ線） -->
+  <rect x="215" y="80" width="80" height="22" fill="#a93226" stroke="#922b21" stroke-width="1"/>
+  <line x1="235" y1="80" x2="255" y2="102" stroke="#c0392b" stroke-width="0.5" opacity="0.6"/>
+
+  <rect x="470" y="80" width="80" height="22" fill="#a93226" stroke="#922b21" stroke-width="1"/>
+  <line x1="490" y1="80" x2="510" y2="102" stroke="#c0392b" stroke-width="0.5" opacity="0.6"/>
+
+  <!-- ボール -->
+  <circle cx="380" cy="400" r="6" fill="#fff"/>
+  <!-- ボールの軌跡（薄い） -->
+  <circle cx="375" cy="410" r="4" fill="#fff" opacity="0.15"/>
+  <circle cx="370" cy="420" r="3" fill="#fff" opacity="0.08"/>
+
+  <!-- パドル -->
+  <rect x="330" y="545" width="120" height="14" rx="2" fill="#ecf0f1" stroke="#bdc3c7" stroke-width="1"/>
+  <!-- パドル中央マーク -->
+  <line x1="390" y1="547" x2="390" y2="557" stroke="#95a5a6" stroke-width="1"/>
+
+  <!-- 壁 -->
+  <rect x="30" y="65" width="5" height="540" fill="#34495e"/>
+  <rect x="765" y="65" width="5" height="540" fill="#34495e"/>
+  <rect x="30" y="65" width="740" height="5" fill="#34495e"/>
+
+  <!-- パワーアップアイテム落下中 -->
+  <rect x="252" y="300" width="30" height="12" rx="1" fill="#9b59b6" stroke="#8e44ad" stroke-width="1"/>
+  <text x="258" y="310" fill="#fff" font-family="monospace" font-size="9" font-weight="bold">+W</text>
+</svg>

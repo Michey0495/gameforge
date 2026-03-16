@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <rect width="800" height="600" fill="#0a0a0a"/>
+
+  <!-- 盤面背景 -->
+  <rect x="250" y="30" width="300" height="540" fill="#111" stroke="#333" stroke-width="2"/>
+
+  <!-- グリッド線 -->
+  <g stroke="#1a1a1a" stroke-width="0.5">
+    <!-- 縦線 10列 -->
+    <line x1="280" y1="30" x2="280" y2="570"/>
+    <line x1="310" y1="30" x2="310" y2="570"/>
+    <line x1="340" y1="30" x2="340" y2="570"/>
+    <line x1="370" y1="30" x2="370" y2="570"/>
+    <line x1="400" y1="30" x2="400" y2="570"/>
+    <line x1="430" y1="30" x2="430" y2="570"/>
+    <line x1="460" y1="30" x2="460" y2="570"/>
+    <line x1="490" y1="30" x2="490" y2="570"/>
+    <line x1="520" y1="30" x2="520" y2="570"/>
+    <!-- 横線 -->
+    <line x1="250" y1="57" x2="550" y2="57"/>
+    <line x1="250" y1="84" x2="550" y2="84"/>
+    <line x1="250" y1="111" x2="550" y2="111"/>
+    <line x1="250" y1="138" x2="550" y2="138"/>
+    <line x1="250" y1="165" x2="550" y2="165"/>
+    <line x1="250" y1="192" x2="550" y2="192"/>
+    <line x1="250" y1="219" x2="550" y2="219"/>
+    <line x1="250" y1="246" x2="550" y2="246"/>
+    <line x1="250" y1="273" x2="550" y2="273"/>
+    <line x1="250" y1="300" x2="550" y2="300"/>
+    <line x1="250" y1="327" x2="550" y2="327"/>
+    <line x1="250" y1="354" x2="550" y2="354"/>
+    <line x1="250" y1="381" x2="550" y2="381"/>
+    <line x1="250" y1="408" x2="550" y2="408"/>
+    <line x1="250" y1="435" x2="550" y2="435"/>
+    <line x1="250" y1="462" x2="550" y2="462"/>
+    <line x1="250" y1="489" x2="550" y2="489"/>
+    <line x1="250" y1="516" x2="550" y2="516"/>
+    <line x1="250" y1="543" x2="550" y2="543"/>
+  </g>
+
+  <!-- 積まれたブロック 下部 -->
+  <!-- 行19 (底) - ほぼ埋まっている -->
+  <rect x="250" y="543" width="30" height="27" fill="#e74c3c" stroke="#c0392b" stroke-width="1"/>
+  <rect x="280" y="543" width="30" height="27" fill="#e74c3c" stroke="#c0392b" stroke-width="1"/>
+  <rect x="310" y="543" width="30" height="27" fill="#2ecc71" stroke="#27ae60" stroke-width="1"/>
+  <rect x="340" y="543" width="30" height="27" fill="#2ecc71" stroke="#27ae60" stroke-width="1"/>
+  <rect x="370" y="543" width="30" height="27" fill="#f39c12" stroke="#e67e22" stroke-width="1"/>
+  <rect x="400" y="543" width="30" height="27" fill="#f39c12" stroke="#e67e22" stroke-width="1"/>
+  <rect x="430" y="543" width="30" height="27" fill="#9b59b6" stroke="#8e44ad" stroke-width="1"/>
+  <rect x="460" y="543" width="30" height="27" fill="#3498db" stroke="#2980b9" stroke-width="1"/>
+  <rect x="490" y="543" width="30" height="27" fill="#3498db" stroke="#2980b9" stroke-width="1"/>
+  <rect x="520" y="543" width="30" height="27" fill="#e74c3c" stroke="#c0392b" stroke-width="1"/>
+
+  <!-- 行18 -->
+  <rect x="250" y="516" width="30" height="27" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+  <rect x="280" y="516" width="30" height="27" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+  <rect x="310" y="516" width="30" height="27" fill="#e74c3c" stroke="#c0392b" stroke-width="1"/>
+  <rect x="370" y="516" width="30" height="27" fill="#9b59b6" stroke="#8e44ad" stroke-width="1"/>
+  <rect x="400" y="516" width="30" height="27" fill="#9b59b6" stroke="#8e44ad" stroke-width="1"/>
+  <rect x="430" y="516" width="30" height="27" fill="#9b59b6" stroke="#8e44ad" stroke-width="1"/>
+  <rect x="490" y="516" width="30" height="27" fill="#2ecc71" stroke="#27ae60" stroke-width="1"/>
+  <rect x="520" y="516" width="30" height="27" fill="#2ecc71" stroke="#27ae60" stroke-width="1"/>
+
+  <!-- 行17 -->
+  <rect x="250" y="489" width="30" height="27" fill="#3498db" stroke="#2980b9" stroke-width="1"/>
+  <rect x="310" y="489" width="30" height="27" fill="#e74c3c" stroke="#c0392b" stroke-width="1"/>
+  <rect x="400" y="489" width="30" height="27" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+  <rect x="430" y="489" width="30" height="27" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+  <rect x="520" y="489" width="30" height="27" fill="#2ecc71" stroke="#27ae60" stroke-width="1"/>
+
+  <!-- 行16 -->
+  <rect x="250" y="462" width="30" height="27" fill="#3498db" stroke="#2980b9" stroke-width="1"/>
+  <rect x="520" y="462" width="30" height="27" fill="#1abc9c" stroke="#16a085" stroke-width="1"/>
+
+  <!-- 落下中のI-ピース（シアン） -->
+  <rect x="370" y="246" width="30" height="27" fill="#00bcd4" stroke="#0097a7" stroke-width="1"/>
+  <rect x="370" y="273" width="30" height="27" fill="#00bcd4" stroke="#0097a7" stroke-width="1"/>
+  <rect x="370" y="300" width="30" height="27" fill="#00bcd4" stroke="#0097a7" stroke-width="1"/>
+  <rect x="370" y="327" width="30" height="27" fill="#00bcd4" stroke="#0097a7" stroke-width="1"/>
+
+  <!-- ドロップガイド（薄い線） -->
+  <rect x="370" y="354" width="30" height="216" fill="none" stroke="#00bcd4" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.3"/>
+
+  <!-- 右サイドパネル -->
+  <rect x="580" y="30" width="170" height="540" fill="none"/>
+
+  <!-- NEXT表示 -->
+  <text x="580" y="55" fill="#888" font-family="monospace" font-size="14" font-weight="bold">NEXT</text>
+  <rect x="580" y="65" width="120" height="80" fill="#111" stroke="#333" stroke-width="1"/>
+  <!-- T-ピース（紫） -->
+  <rect x="610" y="85" width="20" height="20" fill="#9b59b6" stroke="#8e44ad" stroke-width="1"/>
+  <rect x="630" y="85" width="20" height="20" fill="#9b59b6" stroke="#8e44ad" stroke-width="1"/>
+  <rect x="650" y="85" width="20" height="20" fill="#9b59b6" stroke="#8e44ad" stroke-width="1"/>
+  <rect x="630" y="105" width="20" height="20" fill="#9b59b6" stroke="#8e44ad" stroke-width="1"/>
+
+  <!-- SCORE -->
+  <text x="580" y="185" fill="#888" font-family="monospace" font-size="14" font-weight="bold">SCORE</text>
+  <text x="580" y="210" fill="#fff" font-family="monospace" font-size="22">12400</text>
+
+  <!-- LEVEL -->
+  <text x="580" y="255" fill="#888" font-family="monospace" font-size="14" font-weight="bold">LEVEL</text>
+  <text x="580" y="280" fill="#fff" font-family="monospace" font-size="22">3</text>
+
+  <!-- LINES -->
+  <text x="580" y="325" fill="#888" font-family="monospace" font-size="14" font-weight="bold">LINES</text>
+  <text x="580" y="350" fill="#fff" font-family="monospace" font-size="22">24</text>
+
+  <!-- 左サイドパネル - HOLD -->
+  <text x="60" y="55" fill="#888" font-family="monospace" font-size="14" font-weight="bold">HOLD</text>
+  <rect x="60" y="65" width="120" height="80" fill="#111" stroke="#333" stroke-width="1"/>
+  <!-- O-ピース（黄） -->
+  <rect x="90" y="85" width="20" height="20" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+  <rect x="110" y="85" width="20" height="20" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+  <rect x="90" y="105" width="20" height="20" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+  <rect x="110" y="105" width="20" height="20" fill="#f1c40f" stroke="#f39c12" stroke-width="1"/>
+</svg>

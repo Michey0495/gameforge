@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <rect width="800" height="600" fill="#1a1a2e"/>
+
+  <!-- 盤面背景 -->
+  <rect x="140" y="50" width="480" height="480" fill="#2d6b3f" stroke="#1a4028" stroke-width="3"/>
+
+  <!-- グリッド線 8x8 -->
+  <g stroke="#1a4028" stroke-width="1.5">
+    <line x1="200" y1="50" x2="200" y2="530"/>
+    <line x1="260" y1="50" x2="260" y2="530"/>
+    <line x1="320" y1="50" x2="320" y2="530"/>
+    <line x1="380" y1="50" x2="380" y2="530"/>
+    <line x1="440" y1="50" x2="440" y2="530"/>
+    <line x1="500" y1="50" x2="500" y2="530"/>
+    <line x1="560" y1="50" x2="560" y2="530"/>
+
+    <line x1="140" y1="110" x2="620" y2="110"/>
+    <line x1="140" y1="170" x2="620" y2="170"/>
+    <line x1="140" y1="230" x2="620" y2="230"/>
+    <line x1="140" y1="290" x2="620" y2="290"/>
+    <line x1="140" y1="350" x2="620" y2="350"/>
+    <line x1="140" y1="410" x2="620" y2="410"/>
+    <line x1="140" y1="470" x2="620" y2="470"/>
+  </g>
+
+  <!-- 星（目印） -->
+  <circle cx="260" cy="170" r="4" fill="#1a4028"/>
+  <circle cx="500" cy="170" r="4" fill="#1a4028"/>
+  <circle cx="260" cy="410" r="4" fill="#1a4028"/>
+  <circle cx="500" cy="410" r="4" fill="#1a4028"/>
+
+  <!-- 石の配置 - ゲーム中盤の配置 -->
+  <!-- 黒石 -->
+  <circle cx="290" cy="200" r="24" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+  <ellipse cx="283" cy="192" rx="6" ry="4" fill="#333" opacity="0.4"/>
+
+  <circle cx="350" cy="200" r="24" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+  <ellipse cx="343" cy="192" rx="6" ry="4" fill="#333" opacity="0.4"/>
+
+  <circle cx="350" cy="260" r="24" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+  <ellipse cx="343" cy="252" rx="6" ry="4" fill="#333" opacity="0.4"/>
+
+  <circle cx="290" cy="320" r="24" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+  <ellipse cx="283" cy="312" rx="6" ry="4" fill="#333" opacity="0.4"/>
+
+  <circle cx="350" cy="320" r="24" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+  <ellipse cx="343" cy="312" rx="6" ry="4" fill="#333" opacity="0.4"/>
+
+  <circle cx="410" cy="320" r="24" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+  <ellipse cx="403" cy="312" rx="6" ry="4" fill="#333" opacity="0.4"/>
+
+  <circle cx="230" cy="260" r="24" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+  <ellipse cx="223" cy="252" rx="6" ry="4" fill="#333" opacity="0.4"/>
+
+  <circle cx="290" cy="260" r="24" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+  <ellipse cx="283" cy="252" rx="6" ry="4" fill="#333" opacity="0.4"/>
+
+  <circle cx="410" cy="200" r="24" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+  <ellipse cx="403" cy="192" rx="6" ry="4" fill="#333" opacity="0.4"/>
+
+  <circle cx="470" cy="260" r="24" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+  <ellipse cx="463" cy="252" rx="6" ry="4" fill="#333" opacity="0.4"/>
+
+  <!-- 白石 -->
+  <circle cx="350" cy="140" r="24" fill="#f0f0f0" stroke="#ccc" stroke-width="1"/>
+  <ellipse cx="343" cy="132" rx="8" ry="5" fill="#fff" opacity="0.6"/>
+
+  <circle cx="410" cy="260" r="24" fill="#f0f0f0" stroke="#ccc" stroke-width="1"/>
+  <ellipse cx="403" cy="252" rx="8" ry="5" fill="#fff" opacity="0.6"/>
+
+  <circle cx="470" cy="200" r="24" fill="#f0f0f0" stroke="#ccc" stroke-width="1"/>
+  <ellipse cx="463" cy="192" rx="8" ry="5" fill="#fff" opacity="0.6"/>
+
+  <circle cx="470" cy="320" r="24" fill="#f0f0f0" stroke="#ccc" stroke-width="1"/>
+  <ellipse cx="463" cy="312" rx="8" ry="5" fill="#fff" opacity="0.6"/>
+
+  <circle cx="350" cy="380" r="24" fill="#f0f0f0" stroke="#ccc" stroke-width="1"/>
+  <ellipse cx="343" cy="372" rx="8" ry="5" fill="#fff" opacity="0.6"/>
+
+  <circle cx="230" cy="320" r="24" fill="#f0f0f0" stroke="#ccc" stroke-width="1"/>
+  <ellipse cx="223" cy="312" rx="8" ry="5" fill="#fff" opacity="0.6"/>
+
+  <circle cx="410" cy="140" r="24" fill="#f0f0f0" stroke="#ccc" stroke-width="1"/>
+  <ellipse cx="403" cy="132" rx="8" ry="5" fill="#fff" opacity="0.6"/>
+
+  <!-- 合法手ハイライト -->
+  <circle cx="170" cy="260" r="8" fill="#4ade80" opacity="0.4"/>
+  <circle cx="230" cy="140" r="8" fill="#4ade80" opacity="0.4"/>
+  <circle cx="290" cy="140" r="8" fill="#4ade80" opacity="0.4"/>
+  <circle cx="230" cy="200" r="8" fill="#4ade80" opacity="0.4"/>
+  <circle cx="530" cy="260" r="8" fill="#4ade80" opacity="0.4"/>
+  <circle cx="470" cy="140" r="8" fill="#4ade80" opacity="0.4"/>
+
+  <!-- 右サイドパネル -->
+  <text x="660" y="90" fill="#aaa" font-family="sans-serif" font-size="14" font-weight="bold">SCORE</text>
+
+  <!-- 黒石カウント -->
+  <circle cx="675" cy="125" r="14" fill="#1a1a1a" stroke="#444" stroke-width="1"/>
+  <text x="700" y="131" fill="#fff" font-family="monospace" font-size="20" font-weight="bold">10</text>
+
+  <!-- 白石カウント -->
+  <circle cx="675" cy="170" r="14" fill="#f0f0f0" stroke="#ccc" stroke-width="1"/>
+  <text x="700" y="176" fill="#fff" font-family="monospace" font-size="20" font-weight="bold">7</text>
+
+  <!-- ターン表示 -->
+  <text x="660" y="230" fill="#4ade80" font-family="sans-serif" font-size="13">YOUR TURN</text>
+  <circle cx="675" cy="250" r="10" fill="#1a1a1a" stroke="#4ade80" stroke-width="2"/>
+
+  <!-- CPU表示 -->
+  <text x="660" y="320" fill="#888" font-family="sans-serif" font-size="12">CPU: 中級</text>
+</svg>

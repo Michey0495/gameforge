@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <rect width="800" height="600" fill="#0d1b0d"/>
+
+  <!-- スコア表示エリア -->
+  <rect x="0" y="0" width="800" height="50" fill="#0a140a"/>
+  <text x="30" y="35" fill="#4ade80" font-family="monospace" font-size="16" font-weight="bold">SCORE: 85</text>
+  <text x="630" y="35" fill="#666" font-family="monospace" font-size="16">HI: 240</text>
+
+  <!-- グリッドエリア背景 -->
+  <rect x="50" y="60" width="700" height="520" fill="#0f200f" stroke="#1a3a1a" stroke-width="2"/>
+
+  <!-- グリッド線（薄い） -->
+  <g stroke="#132613" stroke-width="0.3">
+    <!-- 縦線 20本 -->
+    <line x1="85" y1="60" x2="85" y2="580"/>
+    <line x1="120" y1="60" x2="120" y2="580"/>
+    <line x1="155" y1="60" x2="155" y2="580"/>
+    <line x1="190" y1="60" x2="190" y2="580"/>
+    <line x1="225" y1="60" x2="225" y2="580"/>
+    <line x1="260" y1="60" x2="260" y2="580"/>
+    <line x1="295" y1="60" x2="295" y2="580"/>
+    <line x1="330" y1="60" x2="330" y2="580"/>
+    <line x1="365" y1="60" x2="365" y2="580"/>
+    <line x1="400" y1="60" x2="400" y2="580"/>
+    <line x1="435" y1="60" x2="435" y2="580"/>
+    <line x1="470" y1="60" x2="470" y2="580"/>
+    <line x1="505" y1="60" x2="505" y2="580"/>
+    <line x1="540" y1="60" x2="540" y2="580"/>
+    <line x1="575" y1="60" x2="575" y2="580"/>
+    <line x1="610" y1="60" x2="610" y2="580"/>
+    <line x1="645" y1="60" x2="645" y2="580"/>
+    <line x1="680" y1="60" x2="680" y2="580"/>
+    <line x1="715" y1="60" x2="715" y2="580"/>
+    <!-- 横線 -->
+    <line x1="50" y1="86" x2="750" y2="86"/>
+    <line x1="50" y1="112" x2="750" y2="112"/>
+    <line x1="50" y1="138" x2="750" y2="138"/>
+    <line x1="50" y1="164" x2="750" y2="164"/>
+    <line x1="50" y1="190" x2="750" y2="190"/>
+    <line x1="50" y1="216" x2="750" y2="216"/>
+    <line x1="50" y1="242" x2="750" y2="242"/>
+    <line x1="50" y1="268" x2="750" y2="268"/>
+    <line x1="50" y1="294" x2="750" y2="294"/>
+    <line x1="50" y1="320" x2="750" y2="320"/>
+    <line x1="50" y1="346" x2="750" y2="346"/>
+    <line x1="50" y1="372" x2="750" y2="372"/>
+    <line x1="50" y1="398" x2="750" y2="398"/>
+    <line x1="50" y1="424" x2="750" y2="424"/>
+    <line x1="50" y1="450" x2="750" y2="450"/>
+    <line x1="50" y1="476" x2="750" y2="476"/>
+    <line x1="50" y1="502" x2="750" y2="502"/>
+    <line x1="50" y1="528" x2="750" y2="528"/>
+    <line x1="50" y1="554" x2="750" y2="554"/>
+  </g>
+
+  <!-- ヘビの体 - 右向きに曲がるヘビ -->
+  <!-- 尻尾 -->
+  <rect x="190" y="320" width="33" height="24" rx="2" fill="#22c55e" stroke="#16a34a" stroke-width="1"/>
+  <rect x="225" y="320" width="33" height="24" rx="2" fill="#22c55e" stroke="#16a34a" stroke-width="1"/>
+  <rect x="260" y="320" width="33" height="24" rx="2" fill="#22c55e" stroke="#16a34a" stroke-width="1"/>
+  <rect x="295" y="320" width="33" height="24" rx="2" fill="#22c55e" stroke="#16a34a" stroke-width="1"/>
+  <!-- 曲がり角 -->
+  <rect x="330" y="320" width="33" height="24" rx="2" fill="#22c55e" stroke="#16a34a" stroke-width="1"/>
+  <rect x="330" y="294" width="33" height="24" rx="2" fill="#22c55e" stroke="#16a34a" stroke-width="1"/>
+  <rect x="330" y="268" width="33" height="24" rx="2" fill="#22c55e" stroke="#16a34a" stroke-width="1"/>
+  <!-- もう一回曲がる -->
+  <rect x="365" y="268" width="33" height="24" rx="2" fill="#22c55e" stroke="#16a34a" stroke-width="1"/>
+  <rect x="400" y="268" width="33" height="24" rx="2" fill="#22c55e" stroke="#16a34a" stroke-width="1"/>
+  <rect x="435" y="268" width="33" height="24" rx="2" fill="#22c55e" stroke="#16a34a" stroke-width="1"/>
+  <!-- 頭（少し大きめ・濃い緑） -->
+  <rect x="470" y="266" width="35" height="28" rx="2" fill="#16a34a" stroke="#15803d" stroke-width="1.5"/>
+  <!-- 目 -->
+  <circle cx="492" cy="273" r="3" fill="#fff"/>
+  <circle cx="492" cy="273" r="1.5" fill="#000"/>
+
+  <!-- エサ（赤い四角） -->
+  <rect x="540" y="398" width="30" height="24" rx="2" fill="#ef4444" stroke="#dc2626" stroke-width="1"/>
+  <!-- エサの光沢 -->
+  <rect x="544" y="401" width="8" height="5" rx="1" fill="#f87171" opacity="0.6"/>
+
+  <!-- 壁の境界線を強調 -->
+  <rect x="50" y="60" width="700" height="520" fill="none" stroke="#2d5a2d" stroke-width="3"/>
+</svg>

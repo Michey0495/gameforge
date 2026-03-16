@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PAC-MAN</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:'Courier New',monospace;overflow:hidden;user-select:none}
+#wrap{position:relative;display:inline-block}
+canvas{display:block}
+#startScreen{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;background:#000}
+.title{font-size:48px;color:#ffff00;margin-bottom:12px;letter-spacing:6px;text-shadow:0 0 30px rgba(255,255,0,0.4)}
+.titleJp{font-size:20px;color:#ffcc00;margin-bottom:40px;letter-spacing:3px}
+.press{font-size:16px;color:#fff;animation:blink 1.2s ease-in-out infinite}
+.hint{font-size:12px;color:#888;margin-top:24px;line-height:2.2;text-align:center}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+#pauseLayer{position:absolute;top:0;left:0;width:100%;height:100%;display:none;justify-content:center;align-items:center;z-index:10;background:rgba(0,0,0,0.65)}
+#pauseLayer span{font-size:28px;color:#ffff00;letter-spacing:3px}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv"></canvas>
+<div id="startScreen">
+<div class="title">PAC-MAN</div>
+<div class="titleJp">パックマン</div>
+<div class="press">ENTER キーでスタート</div>
+<div class="hint">
+矢印キー : 移動<br>
+スペースキー : 一時停止
+</div>
+</div>
+<div id="pauseLayer"><span>-- 一時停止 --</span></div>
+</div>
+
+<script>
+(function() {
+"use strict";
+
+// =========================================================
+// 定数
+// =========================================================
+const TILE_SIZE = 16;
+const COLS = 28;
+const ROWS = 31;
+const TOP_MARGIN = 40;
+const BOTTOM_MARGIN = 28;
+const CW = COLS * TILE_SIZE;
+const CH = ROWS * TILE_SIZE + TOP_MARGIN + BOTTOM_MARGIN;
+
+// 得点
+const SCORE_DOT = 10;
+const SCORE_POWER = 50;
+const GHOST_SCORE_TABLE = [200, 400, 800, 1600];
+
+// フレーム数 (60fps換算)
+const FRIGHT_FRAMES = 480;       // 8秒
+const FRIGHT_BLINK_START = 180;  // 残り3秒から点滅
+const READY_FRAMES = 150;
+const DYING_FRAMES = 100;
+const CLEAR_FRAMES = 180;
+
+// スキャッター/チェイス切替タイミング (フレーム)
+const MODE_SCHEDULE = [
+  { mode: "scatter", dur: 420 },
+  { mode: "chase",   dur: 1200 },
+  { mode: "scatter", dur: 420 },
+  { mode: "chase",   dur: 1200 },
+  { mode: "scatter", dur: 300 },
+  { mode: "chase",   dur: 1200 },
+  { mode: "scatter", dur: 300 },
+  { mode: "chase",   dur: Infinity }
+];
+
+// タイル種別
+const W = 1;  // 壁
+const D = 2;  // ドット
+const P = 3;  // パワーペレット
+const G = 4;  // ゴーストハウスドア
+const E = 0;  // 空
+
+// 迷路 28x31
+const MAZE_TEMPLATE = [
+// 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
+  [W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W], // 0
+  [W, D, D, D, D, D, D, D, D, D, D, D, D, W, W, D, D, D, D, D, D, D, D, D, D, D, D, W], // 1
+  [W, D, W, W, W, W, D, W, W, W, W, W, D, W, W, D, W, W, W, W, W, D, W, W, W, W, D, W], // 2
+  [W, P, W, W, W, W, D, W, W, W, W, W, D, W, W, D, W, W, W, W, W, D, W, W, W, W, P, W], // 3
+  [W, D, W, W, W, W, D, W, W, W, W, W, D, W, W, D, W, W, W, W, W, D, W, W, W, W, D, W], // 4
+  [W, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, W], // 5
+  [W, D, W, W, W, W, D, W, W, D, W, W, W, W, W, W, W, W, D, W, W, D, W, W, W, W, D, W], // 6
+  [W, D, W, W, W, W, D, W, W, D, W, W, W, W, W, W, W, W, D, W, W, D, W, W, W, W, D, W], // 7
+  [W, D, D, D, D, D, D, W, W, D, D, D, D, W, W, D, D, D, D, W, W, D, D, D, D, D, D, W], // 8
+  [W, W, W, W, W, W, D, W, W, W, W, W, E, W, W, E, W, W, W, W, W, D, W, W, W, W, W, W], // 9
+  [E, E, E, E, E, W, D, W, W, W, W, W, E, W, W, E, W, W, W, W, W, D, W, E, E, E, E, E], // 10
+  [E, E, E, E, E, W, D, W, W, E, E, E, E, E, E, E, E, E, E, W, W, D, W, E, E, E, E, E], // 11
+  [E, E, E, E, E, W, D, W, W, E, W, W, W, G, G, W, W, W, E, W, W, D, W, E, E, E, E, E], // 12
+  [W, W, W, W, W, W, D, W, W, E, W, E, E, E, E, E, E, W, E, W, W, D, W, W, W, W, W, W], // 13
+  [E, E, E, E, E, E, D, E, E, E, W, E, E, E, E, E, E, W, E, E, E, D, E, E, E, E, E, E], // 14  トンネル行
+  [W, W, W, W, W, W, D, W, W, E, W, E, E, E, E, E, E, W, E, W, W, D, W, W, W, W, W, W], // 15
+  [E, E, E, E, E, W, D, W, W, E, W, W, W, W, W, W, W, W, E, W, W, D, W, E, E, E, E, E], // 16
+  [E, E, E, E, E, W, D, W, W, E, E, E, E, E, E, E, E, E, E, W, W, D, W, E, E, E, E, E], // 17
+  [E, E, E, E, E, W, D, W, W, E, W, W, W, W, W, W, W, W, E, W, W, D, W, E, E, E, E, E], // 18
+  [W, W, W, W, W, W, D, W, W, E, W, W, W, W, W, W, W, W, E, W, W, D, W, W, W, W, W, W], // 19
+  [W, D, D, D, D, D, D, D, D, D, D, D, D, W, W, D, D, D, D, D, D, D, D, D, D, D, D, W], // 20
+  [W, D, W, W, W, W, D, W, W, W, W, W, D, W, W, D, W, W, W, W, W, D, W, W, W, W, D, W], // 21
+  [W, D, W, W, W, W, D, W, W, W, W, W, D, W, W, D, W, W, W, W, W, D, W, W, W, W, D, W], // 22
+  [W, P, D, D, W, W, D, D, D, D, D, D, D, E, E, D, D, D, D, D, D, D, W, W, D, D, P, W], // 23
+  [W, W, W, D, W, W, D, W, W, D, W, W, W, W, W, W, W, W, D, W, W, D, W, W, D, W, W, W], // 24
+  [W, W, W, D, W, W, D, W, W, D, W, W, W, W, W, W, W, W, D, W, W, D, W, W, D, W, W, W], // 25
+  [W, D, D, D, D, D, D, W, W, D, D, D, D, W, W, D, D, D, D, W, W, D, D, D, D, D, D, W], // 26
+  [W, D, W, W, W, W, W, W, W, W, W, W, D, W, W, D, W, W, W, W, W, W, W, W, W, W, D, W], // 27
+  [W, D, W, W, W, W, W, W, W, W, W, W, D, W, W, D, W, W, W, W, W, W, W, W, W, W, D, W], // 28
+  [W, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, W], // 29
+  [W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W], // 30
+];
+
+// 方向定数
+const UP    = 0;
+const LEFT  = 1;
+const DOWN  = 2;
+const RIGHT = 3;
+const NONE  = -1;
+
+const DX = [0, -1, 0, 1];
+const DY = [-1, 0, 1, 0];
+
+function oppositeDir(d) { return (d + 2) % 4; }
+
+// ゴースト設定
+const GHOST_COLORS = ["#ff0000", "#ffb8ff", "#00ffff", "#ffb852"];
+const SCATTER_CORNERS = [
+  { x: 25, y: -3 },  // Blinky: 右上
+  { x: 2,  y: -3 },  // Pinky: 左上
+  { x: 27, y: 34 },  // Inky: 右下
+  { x: 0,  y: 34 }   // Clyde: 左下
+];
+
+// =========================================================
+// Audio (Web Audio API)
+// =========================================================
+let actx = null;
+
+function ensureAudio() {
+  if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function tone(freq, dur, type, vol, sweep) {
+  if (!actx) return;
+  const t = actx.currentTime;
+  const o = actx.createOscillator();
+  const g = actx.createGain();
+  o.type = type || "square";
+  o.frequency.setValueAtTime(freq, t);
+  if (sweep) o.frequency.linearRampToValueAtTime(sweep, t + dur);
+  g.gain.setValueAtTime(vol || 0.06, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(t); o.stop(t + dur);
+}
+
+let wakaHigh = false;
+function sndWaka() {
+  wakaHigh = !wakaHigh;
+  tone(wakaHigh ? 330 : 260, 0.08, "square", 0.05);
+}
+
+function sndPower() {
+  tone(120, 0.35, "square", 0.07, 900);
+}
+
+function sndEatGhost() {
+  if (!actx) return;
+  const t = actx.currentTime;
+  [600, 200, 900].forEach((f, i) => {
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = "square";
+    o.frequency.setValueAtTime(f, t + i * 0.1);
+    g.gain.setValueAtTime(0.08, t + i * 0.1);
+    g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.09);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t + i * 0.1); o.stop(t + i * 0.1 + 0.09);
+  });
+}
+
+function sndDeath() {
+  if (!actx) return;
+  const t = actx.currentTime;
+  for (let i = 0; i < 10; i++) {
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = "square";
+    o.frequency.setValueAtTime(500 - i * 40, t + i * 0.1);
+    g.gain.setValueAtTime(0.07, t + i * 0.1);
+    g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.09);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t + i * 0.1); o.stop(t + i * 0.1 + 0.09);
+  }
+}
+
+function sndClear() {
+  if (!actx) return;
+  const t = actx.currentTime;
+  [523, 659, 784, 1047, 784, 1047].forEach((f, i) => {
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = "square";
+    o.frequency.setValueAtTime(f, t + i * 0.15);
+    g.gain.setValueAtTime(0.07, t + i * 0.15);
+    g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.15 + 0.14);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t + i * 0.15); o.stop(t + i * 0.15 + 0.14);
+  });
+}
+
+function sndReady() {
+  if (!actx) return;
+  const t = actx.currentTime;
+  [392, 494, 587, 784].forEach((f, i) => {
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = "square";
+    o.frequency.setValueAtTime(f, t + i * 0.18);
+    g.gain.setValueAtTime(0.05, t + i * 0.18);
+    g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.18 + 0.16);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t + i * 0.18); o.stop(t + i * 0.18 + 0.16);
+  });
+}
+
+// =========================================================
+// Canvas
+// =========================================================
+const cv = document.getElementById("cv");
+const cx = cv.getContext("2d");
+cv.width = CW;
+cv.height = CH;
+
+const elStart = document.getElementById("startScreen");
+const elPause = document.getElementById("pauseLayer");
+
+// =========================================================
+// ゲーム状態
+// =========================================================
+let maze = [];
+let totalDots = 0;
+let dotsEaten = 0;
+let score = 0;
+let highScore = 0;
+let lives = 3;
+let level = 1;
+let ghostCombo = 0;
+let frightTimer = 0;
+let modeIdx = 0;
+let modeClock = 0;
+let frame = 0;
+let state = "title"; // title | ready | play | dying | clear | over | paused
+let stateTimer = 0;
+let prevPlayState = "";
+let popups = [];
+
+// =========================================================
+// エンティティ
+// =========================================================
+// パックマン: タイル座標 (tx,ty) + ピクセルオフセット (ox,oy) 0..TILE_SIZE-1
+let pac = {};
+
+function resetPac() {
+  pac = {
+    tx: 14, ty: 23,
+    ox: 0, oy: 0,
+    dir: LEFT,
+    nextDir: LEFT,
+    speed: 2,          // ピクセル/フレーム (TILEの約数にする)
+    mouth: 0,
+    mouthOpen: true,
+    alive: true
+  };
+}
+
+// ゴースト配列
+let ghosts = [];
+
+function makeGhost(idx) {
+  // 初期位置: Blinkyはハウス外、他はハウス内
+  const houseTiles = [
+    { tx: 14, ty: 11 },   // Blinky: ハウス上
+    { tx: 14, ty: 14 },   // Pinky: ハウス中央
+    { tx: 12, ty: 14 },   // Inky: ハウス左
+    { tx: 16, ty: 14 }    // Clyde: ハウス右
+  ];
+  const h = houseTiles[idx];
+  return {
+    idx,
+    tx: h.tx, ty: h.ty,
+    ox: 0, oy: 0,
+    dir: LEFT,
+    speed: 2,
+    color: GHOST_COLORS[idx],
+    frightened: false,
+    eaten: false,
+    inHouse: idx !== 0,
+    exitTimer: idx * 150 + (idx > 0 ? 60 : 0), // Blinky即出発、他は順番に
+    bouncingUp: true,
+    target: { x: 14, y: 11 }
+  };
+}
+
+function resetGhosts() {
+  ghosts = [0, 1, 2, 3].map(makeGhost);
+}
+
+// =========================================================
+// 迷路
+// =========================================================
+function buildMaze() {
+  maze = [];
+  totalDots = 0;
+  for (let r = 0; r < ROWS; r++) {
+    maze[r] = [];
+    for (let c = 0; c < COLS; c++) {
+      maze[r][c] = MAZE_TEMPLATE[r][c];
+      if (maze[r][c] === D || maze[r][c] === P) totalDots++;
+    }
+  }
+}
+
+function tileAt(col, row) {
+  if (row < 0 || row >= ROWS) return W;
+  // トンネル行(14)のみ画面外を通過可能
+  if (col < 0 || col >= COLS) return (row === 14) ? E : W;
+  return maze[row][col];
+}
+
+function isPassable(col, row, allowDoor) {
+  const t = tileAt(col, row);
+  if (t === W) return false;
+  if (t === G && !allowDoor) return false;
+  return true;
+}
+
+// =========================================================
+// ゲーム初期化
+// =========================================================
+function initGame() {
+  score = 0;
+  lives = 3;
+  level = 1;
+  dotsEaten = 0;
+  ghostCombo = 0;
+  frightTimer = 0;
+  modeIdx = 0;
+  modeClock = 0;
+  popups = [];
+  buildMaze();
+  resetPac();
+  resetGhosts();
+  state = "ready";
+  stateTimer = READY_FRAMES;
+  sndReady();
+}
+
+function nextStage() {
+  level++;
+  dotsEaten = 0;
+  frightTimer = 0;
+  modeIdx = 0;
+  modeClock = 0;
+  popups = [];
+  buildMaze();
+  resetPac();
+  resetGhosts();
+  state = "ready";
+  stateTimer = READY_FRAMES;
+  sndReady();
+}
+
+function respawn() {
+  lives--;
+  if (lives <= 0) {
+    state = "over";
+    return;
+  }
+  frightTimer = 0;
+  popups = [];
+  resetPac();
+  resetGhosts();
+  state = "ready";
+  stateTimer = READY_FRAMES;
+  sndReady();
+}
+
+// =========================================================
+// 移動 (グリッドロック方式: speedはTILE_SIZEの約数)
+// =========================================================
+
+// パックマンが次のタイルへ進めるか
+function canPacGo(dir) {
+  return isPassable(pac.tx + DX[dir], pac.ty + DY[dir], false);
+}
+
+function updatePac() {
+  // 逆方向はタイル中心でなくても即座に転換可能
+  if (pac.nextDir === oppositeDir(pac.dir) && (pac.ox !== 0 || pac.oy !== 0)) {
+    pac.dir = pac.nextDir;
+    // オフセットの符号反転は不要: 既にDX/DYの方向で次フレームから逆に進む
+  }
+
+  // タイル中心にいるとき方向転換を試みる
+  if (pac.ox === 0 && pac.oy === 0) {
+    if (canPacGo(pac.nextDir)) {
+      pac.dir = pac.nextDir;
+    }
+    if (!canPacGo(pac.dir)) {
+      // 停止中は口を閉じる
+      pac.mouth = 0.15;
+      pac.mouthOpen = true;
+      return;
+    }
+  }
+
+  // 移動
+  const spd = pac.speed;
+  pac.ox += DX[pac.dir] * spd;
+  pac.oy += DY[pac.dir] * spd;
+
+  // タイル越えチェック
+  if (pac.ox >= TILE_SIZE) { pac.tx++; pac.ox -= TILE_SIZE; }
+  if (pac.ox < 0)          { pac.tx--; pac.ox += TILE_SIZE; }
+  if (pac.oy >= TILE_SIZE) { pac.ty++; pac.oy -= TILE_SIZE; }
+  if (pac.oy < 0)          { pac.ty--; pac.oy += TILE_SIZE; }
+
+  // トンネルラップ
+  if (pac.tx < -1) { pac.tx = COLS; pac.ox = 0; }
+  if (pac.tx > COLS) { pac.tx = -1; pac.ox = 0; }
+
+  // 口アニメ
+  pac.mouth += pac.mouthOpen ? 0.12 : -0.12;
+  if (pac.mouth >= 0.85) pac.mouthOpen = false;
+  if (pac.mouth <= 0.05) pac.mouthOpen = true;
+}
+
+// ゴースト移動
+function updateGhost(g) {
+  // ハウス内: 上下バウンス、タイマーが切れたら出る
+  if (g.inHouse) {
+    g.exitTimer--;
+    if (g.exitTimer <= 0) {
+      // ハウスから出る: ドアの上(14,11)にテレポート
+      g.tx = 14; g.ty = 11;
+      g.ox = 0; g.oy = 0;
+      g.dir = LEFT;
+      g.inHouse = false;
+      return;
+    }
+    // ハウス内バウンス
+    g.oy += g.bouncingUp ? -1 : 1;
+    if (g.oy < -3) { g.oy = -3; g.bouncingUp = false; }
+    if (g.oy > 3)  { g.oy = 3;  g.bouncingUp = true; }
+    return;
+  }
+
+  // 食べられた状態: ハウスへ戻る
+  if (g.eaten) {
+    g.target = { x: 14, y: 11 };
+    const spd = 4; // 高速帰還
+    moveTowardTarget(g, spd, true);
+    // 到着判定
+    if (g.tx === 14 && g.ty === 11 && g.ox === 0 && g.oy === 0) {
+      g.eaten = false;
+      g.frightened = false;
+      g.inHouse = true;
+      g.exitTimer = 60;
+      g.tx = 14; g.ty = 14;
+      g.ox = 0; g.oy = 0;
+      g.bouncingUp = true;
+    }
+    return;
+  }
+
+  // 通常/フライトモード
+  // 速度はTILE_SIZEの約数(1,2,4,8)のみ使用して境界ズレを防ぐ
+  const speedByLevel = level >= 8 ? 4 : 2;
+  const spd = g.frightened ? 1 : speedByLevel;
+
+  // ターゲット計算
+  if (!g.frightened) {
+    calcTarget(g);
+  }
+
+  moveTowardTarget(g, spd, false);
+}
+
+function moveTowardTarget(g, spd, allowDoor) {
+  // タイル中心で方向決定
+  if (g.ox === 0 && g.oy === 0) {
+    const opp = oppositeDir(g.dir);
+    const order = [UP, LEFT, DOWN, RIGHT]; // 優先順位
+    let bestDir = g.dir;
+    let bestDist = Infinity;
+    let found = false;
+
+    for (const d of order) {
+      if (d === opp) continue; // 逆走禁止
+      const nx = g.tx + DX[d];
+      const ny = g.ty + DY[d];
+      if (!isPassable(nx, ny, allowDoor || g.eaten)) continue;
+
+      if (g.frightened && !g.eaten) {
+        // フライトモード: ランダム
+        if (!found || Math.random() < 0.3) {
+          bestDir = d;
+          found = true;
+        }
+      } else {
+        const dist = (nx - g.target.x) ** 2 + (ny - g.target.y) ** 2;
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestDir = d;
+          found = true;
+        }
+      }
+    }
+
+    g.dir = bestDir;
+    // 進行方向が壁なら停止
+    if (!isPassable(g.tx + DX[g.dir], g.ty + DY[g.dir], allowDoor || g.eaten)) {
+      return;
+    }
+  }
+
+  // 実際の移動 (speedがTILE_SIZEの約数なので正確にタイル境界に止まる)
+  g.ox += DX[g.dir] * spd;
+  g.oy += DY[g.dir] * spd;
+
+  if (g.ox >= TILE_SIZE) { g.tx++; g.ox -= TILE_SIZE; }
+  if (g.ox < 0)          { g.tx--; g.ox += TILE_SIZE; }
+  if (g.oy >= TILE_SIZE) { g.ty++; g.oy -= TILE_SIZE; }
+  if (g.oy < 0)          { g.ty--; g.oy += TILE_SIZE; }
+
+  // トンネルラップ
+  if (g.tx < -1) { g.tx = COLS; g.ox = 0; }
+  if (g.tx > COLS) { g.tx = -1; g.ox = 0; }
+}
+
+function calcTarget(g) {
+  const modeEntry = MODE_SCHEDULE[Math.min(modeIdx, MODE_SCHEDULE.length - 1)];
+  const isChase = modeEntry.mode === "chase";
+
+  if (!isChase) {
+    g.target = SCATTER_CORNERS[g.idx];
+    return;
+  }
+
+  switch (g.idx) {
+    case 0: // Blinky: 直追跡
+      g.target = { x: pac.tx, y: pac.ty };
+      break;
+    case 1: // Pinky: 4タイル先
+      g.target = {
+        x: pac.tx + DX[pac.dir] * 4,
+        y: pac.ty + DY[pac.dir] * 4
+      };
+      break;
+    case 2: // Inky: Blinkyとの関係で計算
+      {
+        const ax = pac.tx + DX[pac.dir] * 2;
+        const ay = pac.ty + DY[pac.dir] * 2;
+        const bk = ghosts[0];
+        g.target = { x: ax * 2 - bk.tx, y: ay * 2 - bk.ty };
+      }
+      break;
+    case 3: // Clyde: 距離で分岐
+      {
+        const d = (g.tx - pac.tx) ** 2 + (g.ty - pac.ty) ** 2;
+        g.target = d > 64
+          ? { x: pac.tx, y: pac.ty }
+          : SCATTER_CORNERS[3];
+      }
+      break;
+  }
+}
+
+// =========================================================
+// 衝突
+// =========================================================
+let wakaCD = 0;
+
+function checkCollisions() {
+  // ドット/パワーペレット取得 (タイル中心で判定)
+  if (pac.ox === 0 && pac.oy === 0 &&
+      pac.tx >= 0 && pac.tx < COLS && pac.ty >= 0 && pac.ty < ROWS) {
+    const t = maze[pac.ty][pac.tx];
+    if (t === D) {
+      maze[pac.ty][pac.tx] = E;
+      score += SCORE_DOT;
+      dotsEaten++;
+      if (wakaCD <= 0) { sndWaka(); wakaCD = 6; }
+    } else if (t === P) {
+      maze[pac.ty][pac.tx] = E;
+      score += SCORE_POWER;
+      dotsEaten++;
+      activateFright();
+      sndPower();
+    }
+  }
+
+  if (wakaCD > 0) wakaCD--;
+
+  // ゴースト接触
+  for (const g of ghosts) {
+    if (g.inHouse || g.eaten) continue;
+    const dx = Math.abs((g.tx * TILE_SIZE + g.ox) - (pac.tx * TILE_SIZE + pac.ox));
+    const dy = Math.abs((g.ty * TILE_SIZE + g.oy) - (pac.ty * TILE_SIZE + pac.oy));
+    if (dx < TILE_SIZE * 0.7 && dy < TILE_SIZE * 0.7) {
+      if (g.frightened) {
+        g.eaten = true;
+        const pts = GHOST_SCORE_TABLE[Math.min(ghostCombo, 3)];
+        score += pts;
+        ghostCombo++;
+        popups.push({
+          x: g.tx * TILE_SIZE + g.ox + TILE_SIZE / 2,
+          y: g.ty * TILE_SIZE + g.oy + TILE_SIZE / 2 + TOP_MARGIN,
+          text: String(pts),
+          ttl: 50
+        });
+        sndEatGhost();
+      } else {
+        // 死亡
+        state = "dying";
+        stateTimer = DYING_FRAMES;
+        sndDeath();
+        return;
+      }
+    }
+  }
+
+  // ステージクリア
+  if (dotsEaten >= totalDots) {
+    state = "clear";
+    stateTimer = CLEAR_FRAMES;
+    sndClear();
+  }
+
+  // ハイスコア更新
+  if (score > highScore) highScore = score;
+}
+
+function activateFright() {
+  frightTimer = FRIGHT_FRAMES;
+  ghostCombo = 0;
+  for (const g of ghosts) {
+    if (!g.eaten && !g.inHouse) {
+      g.frightened = true;
+      g.dir = oppositeDir(g.dir);
+    }
+  }
+}
+
+// =========================================================
+// モード管理
+// =========================================================
+function updateMode() {
+  if (frightTimer > 0) {
+    frightTimer--;
+    if (frightTimer === 0) {
+      for (const g of ghosts) g.frightened = false;
+    }
+    return;
+  }
+
+  modeClock++;
+  const entry = MODE_SCHEDULE[Math.min(modeIdx, MODE_SCHEDULE.length - 1)];
+  if (modeClock >= entry.dur && modeIdx < MODE_SCHEDULE.length - 1) {
+    modeClock = 0;
+    modeIdx++;
+    // 方向反転
+    for (const g of ghosts) {
+      if (!g.frightened && !g.eaten && !g.inHouse) {
+        g.dir = oppositeDir(g.dir);
+      }
+    }
+  }
+}
+
+// =========================================================
+// 描画
+// =========================================================
+
+// 壁をオフスクリーンにキャッシュ
+let wallCanvas = null;
+
+function renderWalls() {
+  wallCanvas = document.createElement("canvas");
+  wallCanvas.width = CW;
+  wallCanvas.height = ROWS * TILE_SIZE;
+  const wc = wallCanvas.getContext("2d");
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (MAZE_TEMPLATE[r][c] !== W) continue;
+      drawWallTile(wc, c, r);
+    }
+  }
+}
+
+function drawWallTile(wc, col, row) {
+  const x = col * TILE_SIZE;
+  const y = row * TILE_SIZE;
+
+  const isW = (c, r) => {
+    if (c < 0 || c >= COLS || r < 0 || r >= ROWS) {
+      if (r === 14 && (c < 0 || c >= COLS)) return false;
+      return true;
+    }
+    return MAZE_TEMPLATE[r][c] === W;
+  };
+
+  const u = isW(col, row - 1);
+  const d = isW(col, row + 1);
+  const l = isW(col - 1, row);
+  const ri = isW(col + 1, row);
+
+  wc.strokeStyle = "#2121de";
+  wc.lineWidth = 2;
+
+  // 壁でない隣接方向にエッジ線を引く
+  if (!u) { wc.beginPath(); wc.moveTo(x, y + 0.5);         wc.lineTo(x + TILE_SIZE, y + 0.5);         wc.stroke(); }
+  if (!d) { wc.beginPath(); wc.moveTo(x, y + TILE_SIZE - 0.5); wc.lineTo(x + TILE_SIZE, y + TILE_SIZE - 0.5); wc.stroke(); }
+  if (!l) { wc.beginPath(); wc.moveTo(x + 0.5, y);         wc.lineTo(x + 0.5, y + TILE_SIZE);         wc.stroke(); }
+  if (!ri){ wc.beginPath(); wc.moveTo(x + TILE_SIZE - 0.5, y); wc.lineTo(x + TILE_SIZE - 0.5, y + TILE_SIZE); wc.stroke(); }
+
+  // 外角 (壁に囲まれているが角が空いている)
+  const ul = isW(col - 1, row - 1);
+  const ur = isW(col + 1, row - 1);
+  const dl = isW(col - 1, row + 1);
+  const dr = isW(col + 1, row + 1);
+
+  wc.lineWidth = 2;
+  const R = 4;
+  if (u && l && !ul) {
+    wc.beginPath(); wc.arc(x + 0.5, y + 0.5, R, 0, Math.PI * 0.5); wc.stroke();
+  }
+  if (u && ri && !ur) {
+    wc.beginPath(); wc.arc(x + TILE_SIZE - 0.5, y + 0.5, R, Math.PI * 0.5, Math.PI); wc.stroke();
+  }
+  if (d && l && !dl) {
+    wc.beginPath(); wc.arc(x + 0.5, y + TILE_SIZE - 0.5, R, Math.PI * 1.5, Math.PI * 2); wc.stroke();
+  }
+  if (d && ri && !dr) {
+    wc.beginPath(); wc.arc(x + TILE_SIZE - 0.5, y + TILE_SIZE - 0.5, R, Math.PI, Math.PI * 1.5); wc.stroke();
+  }
+}
+
+function drawMaze() {
+  // キャッシュ済み壁
+  if (wallCanvas) {
+    cx.drawImage(wallCanvas, 0, TOP_MARGIN);
+  }
+
+  // ドット・パワーペレット・ドア
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const t = maze[r][c];
+      const px = c * TILE_SIZE + TILE_SIZE / 2;
+      const py = r * TILE_SIZE + TILE_SIZE / 2 + TOP_MARGIN;
+      if (t === D) {
+        cx.fillStyle = "#ffdfb8";
+        cx.beginPath();
+        cx.arc(px, py, 1.8, 0, Math.PI * 2);
+        cx.fill();
+      } else if (t === P) {
+        const pulse = 0.5 + Math.sin(frame * 0.08) * 0.5;
+        cx.globalAlpha = pulse;
+        cx.fillStyle = "#ffdfb8";
+        cx.beginPath();
+        cx.arc(px, py, 5, 0, Math.PI * 2);
+        cx.fill();
+        cx.globalAlpha = 1;
+      } else if (t === G) {
+        cx.fillStyle = "#ffb8ff";
+        cx.fillRect(c * TILE_SIZE, r * TILE_SIZE + TOP_MARGIN + 6, TILE_SIZE, 3);
+      }
+    }
+  }
+}
+
+function drawPacman() {
+  const px = pac.tx * TILE_SIZE + pac.ox + TILE_SIZE / 2;
+  const py = pac.ty * TILE_SIZE + pac.oy + TILE_SIZE / 2 + TOP_MARGIN;
+  const r = TILE_SIZE / 2 - 1;
+
+  const angles = [Math.PI * 1.5, Math.PI, Math.PI * 0.5, 0]; // UP LEFT DOWN RIGHT
+  const a = angles[pac.dir];
+  const m = pac.mouth * 0.5;
+
+  cx.fillStyle = "#ffff00";
+  cx.beginPath();
+  cx.moveTo(px, py);
+  cx.arc(px, py, r, a + m, a + Math.PI * 2 - m);
+  cx.closePath();
+  cx.fill();
+}
+
+function drawPacDying() {
+  const px = pac.tx * TILE_SIZE + pac.ox + TILE_SIZE / 2;
+  const py = pac.ty * TILE_SIZE + pac.oy + TILE_SIZE / 2 + TOP_MARGIN;
+  const r = TILE_SIZE / 2 - 1;
+
+  const progress = 1 - stateTimer / DYING_FRAMES;
+  const shrink = Math.max(0, 1 - progress * 1.3);
+  const openAngle = progress * Math.PI;
+  const spin = progress * Math.PI * 3;
+
+  if (shrink <= 0) return;
+
+  cx.fillStyle = "#ffff00";
+  cx.beginPath();
+  cx.moveTo(px, py);
+  cx.arc(px, py, r * shrink, spin + openAngle, spin + Math.PI * 2 - openAngle);
+  cx.closePath();
+  cx.fill();
+}
+
+function drawGhost(g) {
+  const px = g.tx * TILE_SIZE + g.ox + TILE_SIZE / 2;
+  const py = g.ty * TILE_SIZE + g.oy + TILE_SIZE / 2 + TOP_MARGIN;
+  const r = TILE_SIZE / 2 - 1;
+
+  // 食べられた: 目だけ
+  if (g.eaten) {
+    drawEyes(px, py, g.dir);
+    return;
+  }
+
+  // ボディカラー
+  let bodyColor;
+  if (g.frightened) {
+    const blinkPhase = frightTimer < FRIGHT_BLINK_START && Math.floor(frame / 8) % 2 === 0;
+    bodyColor = blinkPhase ? "#ffffff" : "#2121de";
+  } else {
+    bodyColor = g.color;
+  }
+
+  // ボディ描画
+  cx.fillStyle = bodyColor;
+  cx.beginPath();
+  cx.arc(px, py - 2, r, Math.PI, 0);
+
+  // 裾の波
+  const wavePhase = Math.floor(frame / 6) % 2;
+  const segs = 3;
+  const sw = (r * 2) / segs;
+  let curX = px + r;
+  const baseY = py + r - 2;
+  cx.lineTo(curX, baseY);
+
+  for (let i = 0; i < segs; i++) {
+    const midX = curX - sw / 2;
+    const endX = curX - sw;
+    const dip = ((i + wavePhase) % 2 === 0) ? 3 : -1;
+    cx.quadraticCurveTo(midX, baseY + dip, endX, baseY);
+    curX = endX;
+  }
+
+  cx.closePath();
+  cx.fill();
+
+  // 目
+  if (g.frightened) {
+    // 白い点の目
+    cx.fillStyle = "#fff";
+    cx.beginPath();
+    cx.arc(px - 3, py - 3, 1.5, 0, Math.PI * 2);
+    cx.arc(px + 3, py - 3, 1.5, 0, Math.PI * 2);
+    cx.fill();
+    // 波線の口
+    cx.strokeStyle = "#fff";
+    cx.lineWidth = 1;
+    cx.beginPath();
+    cx.moveTo(px - 5, py + 3);
+    for (let i = 1; i <= 5; i++) {
+      cx.lineTo(px - 5 + i * 2, py + (i % 2 === 0 ? 3 : 5));
+    }
+    cx.stroke();
+  } else {
+    drawEyes(px, py, g.dir);
+  }
+}
+
+function drawEyes(px, py, dir) {
+  // 白目
+  cx.fillStyle = "#fff";
+  cx.beginPath();
+  cx.ellipse(px - 4, py - 3, 3.5, 4.5, 0, 0, Math.PI * 2);
+  cx.fill();
+  cx.beginPath();
+  cx.ellipse(px + 4, py - 3, 3.5, 4.5, 0, 0, Math.PI * 2);
+  cx.fill();
+
+  // 瞳
+  const pdx = DX[dir] * 2;
+  const pdy = DY[dir] * 2;
+  cx.fillStyle = "#2121de";
+  cx.beginPath();
+  cx.arc(px - 4 + pdx, py - 3 + pdy, 2, 0, Math.PI * 2);
+  cx.arc(px + 4 + pdx, py - 3 + pdy, 2, 0, Math.PI * 2);
+  cx.fill();
+}
+
+function drawHUD() {
+  cx.fillStyle = "#fff";
+  cx.font = "13px 'Courier New',monospace";
+
+  // スコア
+  cx.textAlign = "left";
+  cx.fillText("SCORE", 8, 14);
+  cx.fillStyle = "#ffff00";
+  cx.fillText(String(score).padStart(8, " "), 8, 30);
+
+  // ハイスコア
+  cx.fillStyle = "#fff";
+  cx.textAlign = "center";
+  cx.fillText("HIGH SCORE", CW / 2, 14);
+  cx.fillStyle = "#ffff00";
+  cx.fillText(String(highScore).padStart(8, " "), CW / 2, 30);
+
+  // レベル
+  cx.fillStyle = "#fff";
+  cx.textAlign = "right";
+  cx.fillText("LEVEL " + level, CW - 8, 14);
+
+  // 残機
+  const ly = CH - 14;
+  for (let i = 0; i < lives - 1; i++) {
+    const lx = 18 + i * 22;
+    cx.fillStyle = "#ffff00";
+    cx.beginPath();
+    cx.moveTo(lx, ly);
+    cx.arc(lx, ly, 7, 0.3, Math.PI * 2 - 0.3);
+    cx.closePath();
+    cx.fill();
+  }
+}
+
+function drawPopups() {
+  for (let i = popups.length - 1; i >= 0; i--) {
+    const p = popups[i];
+    p.ttl--;
+    if (p.ttl <= 0) { popups.splice(i, 1); continue; }
+    const alpha = Math.min(1, p.ttl / 20);
+    cx.fillStyle = `rgba(0,255,255,${alpha})`;
+    cx.font = "bold 11px 'Courier New',monospace";
+    cx.textAlign = "center";
+    cx.fillText(p.text, p.x, p.y - (50 - p.ttl) * 0.4);
+  }
+}
+
+// =========================================================
+// メインループ
+// =========================================================
+function update() {
+  frame++;
+
+  switch (state) {
+    case "ready":
+      stateTimer--;
+      if (stateTimer <= 0) state = "play";
+      return;
+
+    case "dying":
+      stateTimer--;
+      if (stateTimer <= 0) respawn();
+      return;
+
+    case "clear":
+      stateTimer--;
+      if (stateTimer <= 0) nextStage();
+      return;
+
+    case "over":
+    case "paused":
+    case "title":
+      return;
+
+    case "play":
+      break;
+  }
+
+  // ゲームプレイ更新
+  updateMode();
+  updatePac();
+  for (const g of ghosts) updateGhost(g);
+  checkCollisions();
+}
+
+function render() {
+  cx.fillStyle = "#000";
+  cx.fillRect(0, 0, CW, CH);
+
+  drawHUD();
+
+  switch (state) {
+    case "title":
+      return;
+
+    case "ready":
+      drawMaze();
+      drawPacman();
+      for (const g of ghosts) drawGhost(g);
+      // Ready/Go テキスト
+      cx.textAlign = "center";
+      cx.font = "bold 16px 'Courier New',monospace";
+      if (stateTimer > 60) {
+        cx.fillStyle = "#ffff00";
+        cx.fillText("READY!", CW / 2, 17 * TILE_SIZE + TOP_MARGIN + 6);
+      } else {
+        cx.fillStyle = "#00ffff";
+        cx.fillText("GO!", CW / 2, 17 * TILE_SIZE + TOP_MARGIN + 6);
+      }
+      break;
+
+    case "play":
+      drawMaze();
+      drawPacman();
+      for (const g of ghosts) drawGhost(g);
+      drawPopups();
+      break;
+
+    case "dying":
+      drawMaze();
+      drawPacDying();
+      break;
+
+    case "clear":
+      drawMaze();
+      drawPacman();
+      // 壁点滅エフェクト
+      if (Math.floor(frame / 12) % 2 === 0) {
+        cx.fillStyle = "rgba(255,255,255,0.12)";
+        cx.fillRect(0, TOP_MARGIN, CW, ROWS * TILE_SIZE);
+      }
+      break;
+
+    case "over":
+      drawMaze();
+      cx.textAlign = "center";
+      cx.fillStyle = "#ff0000";
+      cx.font = "bold 22px 'Courier New',monospace";
+      cx.fillText("GAME OVER", CW / 2, 17 * TILE_SIZE + TOP_MARGIN);
+      cx.fillStyle = "#fff";
+      cx.font = "13px 'Courier New',monospace";
+      cx.fillText("ENTER で再スタート", CW / 2, 17 * TILE_SIZE + TOP_MARGIN + 24);
+      break;
+
+    case "paused":
+      drawMaze();
+      drawPacman();
+      for (const g of ghosts) drawGhost(g);
+      break;
+  }
+}
+
+function loop() {
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+
+// =========================================================
+// 入力
+// =========================================================
+document.addEventListener("keydown", function(e) {
+  switch (e.key) {
+    case "Enter":
+      if (state === "title") {
+        ensureAudio();
+        elStart.style.display = "none";
+        initGame();
+      } else if (state === "over") {
+        initGame();
+      }
+      e.preventDefault();
+      return;
+
+    case " ":
+      if (state === "play") {
+        prevPlayState = state;
+        state = "paused";
+        elPause.style.display = "flex";
+      } else if (state === "paused") {
+        state = "play";
+        elPause.style.display = "none";
+      }
+      e.preventDefault();
+      return;
+
+    case "ArrowUp":
+    case "ArrowLeft":
+    case "ArrowDown":
+    case "ArrowRight":
+      if (state === "play" || state === "ready") {
+        const dirMap = { ArrowUp: UP, ArrowLeft: LEFT, ArrowDown: DOWN, ArrowRight: RIGHT };
+        pac.nextDir = dirMap[e.key];
+      }
+      e.preventDefault();
+      break;
+  }
+});
+
+// =========================================================
+// 起動
+// =========================================================
+renderWalls();
+buildMaze();
+resetPac();
+resetGhosts();
+loop();
+
+})();
+</script>
+</body>
+</html>

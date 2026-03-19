@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スーパーランナー</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a0a;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-family: 'Courier New', monospace;
+  overflow: hidden;
+}
+canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border: 2px solid #2a2a2a;
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+'use strict';
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 800;
+const H = 480;
+canvas.width = W;
+canvas.height = H;
+
+const TILE = 32;
+const GRAVITY = 0.6;
+const JUMP_FORCE = -12;
+const MOVE_SPEED = 4;
+const MAX_FALL = 12;
+const COLS = 80;
+const ROWS = 15;
+const VIEW_COLS = Math.ceil(W / TILE);
+
+// ゲーム状態
+let state = 'title'; // title, playing, gameover, stageclear, allclear
+let currentStage = 0;
+let lives = 3;
+let score = 0;
+let coins = 0;
+let camera = { x: 0 };
+let player, enemies, items, particles, level;
+let keys = {};
+let jumpHeld = false;
+let invincibleTimer = 0;
+
+// 色パレット
+const COLORS = {
+  sky:       ['#5c94fc','#3c68b4','#1c2c5c','#5c94fc','#000020','#fc9c38','#5c5c5c','#2c2c5c','#fce4a8','#8cc8fc'],
+  ground:    ['#c84c0c','#8c4c0c','#4c4c4c','#c84c0c','#2c2c2c','#c84c0c','#6c6c6c','#4c2c0c','#c8a458','#1c1c3c'],
+  brick:     ['#dc8c3c','#a06830','#6c6c6c','#dc8c3c','#3c3c3c','#dc8c3c','#8c8c8c','#5c3c1c','#dcc07c','#2c2c4c'],
+  block:     ['#fcdc78','#b89c50','#9c9c9c','#fcdc78','#5c5c5c','#fcdc78','#acacac','#7c5c2c','#fcecac','#4c4c6c'],
+  pipe:      ['#38a838','#2c7c2c','#3c8c3c','#38a838','#1c3c1c','#38a838','#4c9c4c','#2c6c2c','#58c858','#2c5c4c'],
+  player:    '#e84040',
+  playerHat: '#e84040',
+  playerFace:'#fcb890',
+  coin:      '#fcd838',
+  flag:      '#38fc38',
+  mushroom:  '#fc4848',
+  star:      '#fce838',
+  text:      '#fcfcfc'
+};
+
+// ステージデータ生成
+function generateStages() {
+  const stages = [];
+  // ステージテンプレート: 各行は地形パターン
+  // G=地面, B=ブロック, ?=アイテムブロック, P=パイプ, E=敵, C=コイン, S=スター, M=キノコ, F=ゴール旗
+  // .=空気
+
+  // Stage 1: 草原 - 入門
+  stages.push(createStage(1, [
+    'G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','.','.','.','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G','G'
+  ], [
+    {t:'?',x:12,y:9},{t:'B',x:14,y:9},{t:'?',x:15,y:9},{t:'B',x:16,y:9},
+    {t:'C',x:20,y:10},{t:'C',x:21,y:10},{t:'C',x:22,y:10},
+    {t:'E',x:25,y:13},{t:'E',x:35,y:13},
+    {t:'P',x:30,y:12,h:3},{t:'P',x:44,y:11,h:4},
+    {t:'?',x:40,y:9},{t:'M',x:40,y:9},
+    {t:'C',x:50,y:8},{t:'C',x:51,y:8},{t:'C',x:52,y:8},
+    {t:'E',x:55,y:13},{t:'E',x:60,y:13},
+    {t:'B',x:58,y:9},{t:'B',x:59,y:9},{t:'B',x:60,y:9},
+    {t:'F',x:76,y:3}
+  ]));
+
+  // Stage 2: 地下
+  stages.push(createStage(2, buildGround([
+    [0,18,'G'],[20,60,'G'],[62,80,'G']
+  ]), [
+    {t:'B',x:10,y:9},{t:'B',x:11,y:9},{t:'B',x:12,y:9},{t:'?',x:13,y:9},
+    {t:'C',x:10,y:7},{t:'C',x:11,y:7},{t:'C',x:12,y:7},{t:'C',x:13,y:7},
+    {t:'B',x:22,y:10},{t:'B',x:23,y:10},{t:'?',x:24,y:10},{t:'B',x:25,y:10},
+    {t:'E',x:28,y:13},{t:'E',x:34,y:13},{t:'E',x:42,y:13},
+    {t:'B',x:36,y:8},{t:'B',x:37,y:8},{t:'B',x:38,y:8},{t:'B',x:39,y:8},
+    {t:'C',x:36,y:6},{t:'C',x:37,y:6},{t:'C',x:38,y:6},{t:'C',x:39,y:6},
+    {t:'?',x:45,y:9},{t:'S',x:45,y:9},
+    {t:'E',x:50,y:13},{t:'E',x:55,y:13},{t:'E',x:58,y:13},
+    {t:'P',x:65,y:11,h:4},
+    {t:'F',x:76,y:3}
+  ]));
+
+  // Stage 3: 空中アスレチック
+  stages.push(createStage(3, buildGround([
+    [0,10,'G'],[14,22,'G'],[26,34,'G'],[38,46,'G'],[50,58,'G'],[62,80,'G']
+  ]), [
+    {t:'B',x:11,y:11},{t:'B',x:12,y:11},{t:'B',x:13,y:10},
+    {t:'C',x:11,y:9},{t:'C',x:12,y:9},
+    {t:'B',x:23,y:10},{t:'B',x:24,y:9},{t:'B',x:25,y:10},
+    {t:'?',x:24,y:7},
+    {t:'E',x:28,y:13},{t:'E',x:40,y:13},
+    {t:'B',x:35,y:11},{t:'B',x:36,y:10},{t:'B',x:37,y:11},
+    {t:'C',x:35,y:9},{t:'C',x:36,y:8},{t:'C',x:37,y:9},
+    {t:'?',x:42,y:9},{t:'M',x:42,y:9},
+    {t:'B',x:47,y:11},{t:'B',x:48,y:10},{t:'B',x:49,y:11},
+    {t:'E',x:52,y:13},{t:'E',x:65,y:13},
+    {t:'C',x:55,y:10},{t:'C',x:56,y:10},{t:'C',x:57,y:10},
+    {t:'F',x:76,y:3}
+  ]));
+
+  // Stage 4: 丘陵
+  stages.push(createStage(4, 'G'.repeat(80).split(''), [
+    {t:'P',x:10,y:12,h:3},{t:'P',x:20,y:11,h:4},{t:'P',x:30,y:10,h:5},
+    {t:'?',x:15,y:9},{t:'?',x:25,y:8},{t:'?',x:35,y:7},
+    {t:'C',x:16,y:7},{t:'C',x:17,y:7},{t:'C',x:26,y:6},{t:'C',x:27,y:6},
+    {t:'E',x:18,y:13},{t:'E',x:28,y:13},{t:'E',x:38,y:13},{t:'E',x:48,y:13},{t:'E',x:58,y:13},
+    {t:'B',x:42,y:9},{t:'B',x:43,y:9},{t:'B',x:44,y:9},{t:'?',x:45,y:9},
+    {t:'M',x:45,y:9},
+    {t:'P',x:50,y:10,h:5},{t:'P',x:60,y:11,h:4},
+    {t:'C',x:52,y:7},{t:'C',x:53,y:7},{t:'C',x:54,y:7},
+    {t:'B',x:65,y:8},{t:'B',x:66,y:8},{t:'B',x:67,y:8},{t:'B',x:68,y:8},
+    {t:'F',x:76,y:3}
+  ]));
+
+  // Stage 5: 夜の洞窟
+  stages.push(createStage(5, buildGround([
+    [0,15,'G'],[18,35,'G'],[38,55,'G'],[58,80,'G']
+  ]), [
+    {t:'B',x:10,y:10},{t:'B',x:11,y:10},{t:'?',x:12,y:10},{t:'B',x:13,y:10},
+    {t:'B',x:16,y:12},{t:'B',x:17,y:12},
+    {t:'C',x:10,y:8},{t:'C',x:11,y:8},{t:'C',x:12,y:8},{t:'C',x:13,y:8},
+    {t:'E',x:22,y:13},{t:'E',x:26,y:13},{t:'E',x:30,y:13},
+    {t:'B',x:24,y:9},{t:'B',x:25,y:9},{t:'B',x:26,y:9},
+    {t:'?',x:32,y:8},{t:'S',x:32,y:8},
+    {t:'B',x:36,y:11},{t:'B',x:37,y:11},
+    {t:'E',x:42,y:13},{t:'E',x:46,y:13},{t:'E',x:50,y:13},
+    {t:'P',x:48,y:11,h:4},
+    {t:'B',x:55,y:9},{t:'?',x:56,y:9},{t:'B',x:57,y:9},
+    {t:'C',x:60,y:10},{t:'C',x:61,y:10},{t:'C',x:62,y:10},
+    {t:'E',x:65,y:13},{t:'E',x:68,y:13},
+    {t:'F',x:76,y:3}
+  ]));
+
+  // Stage 6: 夕焼け
+  stages.push(createStage(6, 'G'.repeat(80).split(''), [
+    {t:'P',x:8,y:12,h:3},{t:'P',x:16,y:11,h:4},{t:'P',x:24,y:10,h:5},{t:'P',x:32,y:11,h:4},
+    {t:'?',x:12,y:9},{t:'?',x:20,y:8},{t:'?',x:28,y:7},
+    {t:'M',x:12,y:9},
+    {t:'E',x:14,y:13},{t:'E',x:22,y:13},{t:'E',x:30,y:13},{t:'E',x:38,y:13},
+    {t:'B',x:40,y:9},{t:'B',x:41,y:9},{t:'B',x:42,y:9},{t:'B',x:43,y:9},{t:'B',x:44,y:9},
+    {t:'C',x:40,y:7},{t:'C',x:41,y:7},{t:'C',x:42,y:7},{t:'C',x:43,y:7},{t:'C',x:44,y:7},
+    {t:'E',x:48,y:13},{t:'E',x:52,y:13},{t:'E',x:56,y:13},{t:'E',x:62,y:13},
+    {t:'P',x:58,y:10,h:5},
+    {t:'B',x:65,y:8},{t:'B',x:66,y:8},{t:'?',x:67,y:8},{t:'B',x:68,y:8},
+    {t:'S',x:67,y:8},
+    {t:'F',x:76,y:3}
+  ]));
+
+  // Stage 7: 灰色要塞
+  stages.push(createStage(7, buildGround([
+    [0,12,'G'],[15,30,'G'],[33,50,'G'],[53,65,'G'],[68,80,'G']
+  ]), [
+    {t:'B',x:8,y:10},{t:'B',x:9,y:9},{t:'B',x:10,y:8},
+    {t:'C',x:8,y:8},{t:'C',x:9,y:7},{t:'C',x:10,y:6},
+    {t:'B',x:13,y:12},{t:'B',x:14,y:12},
+    {t:'E',x:18,y:13},{t:'E',x:22,y:13},{t:'E',x:26,y:13},
+    {t:'?',x:20,y:9},{t:'M',x:20,y:9},
+    {t:'B',x:24,y:8},{t:'B',x:25,y:8},{t:'B',x:26,y:8},{t:'B',x:27,y:8},
+    {t:'C',x:24,y:6},{t:'C',x:25,y:6},{t:'C',x:26,y:6},{t:'C',x:27,y:6},
+    {t:'B',x:31,y:11},{t:'B',x:32,y:11},
+    {t:'E',x:36,y:13},{t:'E',x:40,y:13},{t:'E',x:44,y:13},{t:'E',x:48,y:13},
+    {t:'P',x:42,y:11,h:4},
+    {t:'?',x:46,y:8},{t:'S',x:46,y:8},
+    {t:'B',x:51,y:11},{t:'B',x:52,y:11},
+    {t:'E',x:56,y:13},{t:'E',x:60,y:13},{t:'E',x:63,y:13},
+    {t:'B',x:66,y:11},{t:'B',x:67,y:11},
+    {t:'F',x:76,y:3}
+  ]));
+
+  // Stage 8: 闇夜
+  stages.push(createStage(8, 'G'.repeat(80).split(''), [
+    {t:'B',x:6,y:10},{t:'B',x:7,y:10},{t:'B',x:8,y:10},{t:'?',x:9,y:10},{t:'B',x:10,y:10},
+    {t:'B',x:6,y:7},{t:'B',x:7,y:7},{t:'B',x:8,y:7},{t:'B',x:9,y:7},{t:'B',x:10,y:7},
+    {t:'C',x:6,y:5},{t:'C',x:7,y:5},{t:'C',x:8,y:5},{t:'C',x:9,y:5},{t:'C',x:10,y:5},
+    {t:'E',x:15,y:13},{t:'E',x:20,y:13},{t:'E',x:25,y:13},{t:'E',x:30,y:13},
+    {t:'P',x:18,y:11,h:4},{t:'P',x:28,y:10,h:5},
+    {t:'?',x:22,y:8},{t:'M',x:22,y:8},
+    {t:'B',x:34,y:9},{t:'B',x:35,y:9},{t:'B',x:36,y:9},{t:'B',x:37,y:9},
+    {t:'E',x:38,y:13},{t:'E',x:42,y:13},{t:'E',x:46,y:13},{t:'E',x:50,y:13},{t:'E',x:54,y:13},
+    {t:'B',x:44,y:8},{t:'?',x:45,y:8},{t:'B',x:46,y:8},
+    {t:'S',x:45,y:8},
+    {t:'P',x:52,y:10,h:5},{t:'P',x:60,y:11,h:4},
+    {t:'C',x:56,y:8},{t:'C',x:57,y:8},{t:'C',x:58,y:8},
+    {t:'E',x:62,y:13},{t:'E',x:66,y:13},{t:'E',x:70,y:13},
+    {t:'B',x:68,y:9},{t:'B',x:69,y:9},{t:'B',x:70,y:9},
+    {t:'F',x:76,y:3}
+  ]));
+
+  // Stage 9: 溶岩ステージ
+  stages.push(createStage(9, buildGround([
+    [0,8,'G'],[11,20,'G'],[23,32,'G'],[35,44,'G'],[47,56,'G'],[59,68,'G'],[71,80,'G']
+  ]), [
+    {t:'B',x:9,y:12},{t:'B',x:10,y:12},
+    {t:'C',x:9,y:10},{t:'C',x:10,y:10},
+    {t:'E',x:14,y:13},{t:'E',x:18,y:13},
+    {t:'?',x:16,y:9},{t:'M',x:16,y:9},
+    {t:'B',x:21,y:11},{t:'B',x:22,y:11},
+    {t:'E',x:26,y:13},{t:'E',x:30,y:13},
+    {t:'B',x:28,y:8},{t:'?',x:29,y:8},{t:'B',x:30,y:8},
+    {t:'C',x:28,y:6},{t:'C',x:29,y:6},{t:'C',x:30,y:6},
+    {t:'B',x:33,y:12},{t:'B',x:34,y:12},
+    {t:'E',x:38,y:13},{t:'E',x:42,y:13},
+    {t:'?',x:40,y:8},{t:'S',x:40,y:8},
+    {t:'B',x:45,y:11},{t:'B',x:46,y:11},
+    {t:'E',x:50,y:13},{t:'E',x:54,y:13},
+    {t:'P',x:52,y:11,h:4},
+    {t:'B',x:57,y:12},{t:'B',x:58,y:12},
+    {t:'E',x:62,y:13},{t:'E',x:64,y:13},{t:'E',x:66,y:13},
+    {t:'B',x:69,y:11},{t:'B',x:70,y:11},
+    {t:'C',x:72,y:10},{t:'C',x:73,y:10},{t:'C',x:74,y:10},
+    {t:'F',x:76,y:3}
+  ]));
+
+  // Stage 10: 最終ステージ - 全要素結集
+  stages.push(createStage(10, buildGround([
+    [0,8,'G'],[10,18,'G'],[20,30,'G'],[32,42,'G'],[44,56,'G'],[58,70,'G'],[72,80,'G']
+  ]), [
+    {t:'B',x:5,y:10},{t:'?',x:6,y:10},{t:'B',x:7,y:10},
+    {t:'M',x:6,y:10},
+    {t:'B',x:9,y:12},{t:'C',x:9,y:10},
+    {t:'E',x:12,y:13},{t:'E',x:14,y:13},{t:'E',x:16,y:13},
+    {t:'P',x:15,y:11,h:4},
+    {t:'?',x:13,y:8},{t:'B',x:14,y:8},{t:'?',x:15,y:8},
+    {t:'C',x:13,y:6},{t:'C',x:14,y:6},{t:'C',x:15,y:6},
+    {t:'B',x:19,y:12},
+    {t:'E',x:23,y:13},{t:'E',x:25,y:13},{t:'E',x:27,y:13},{t:'E',x:29,y:13},
+    {t:'B',x:24,y:9},{t:'B',x:25,y:9},{t:'B',x:26,y:9},{t:'?',x:27,y:9},{t:'B',x:28,y:9},
+    {t:'S',x:27,y:9},
+    {t:'B',x:31,y:11},
+    {t:'E',x:34,y:13},{t:'E',x:36,y:13},{t:'E',x:38,y:13},{t:'E',x:40,y:13},
+    {t:'P',x:37,y:10,h:5},
+    {t:'?',x:35,y:7},{t:'M',x:35,y:7},
+    {t:'B',x:43,y:12},
+    {t:'E',x:46,y:13},{t:'E',x:48,y:13},{t:'E',x:50,y:13},{t:'E',x:52,y:13},{t:'E',x:54,y:13},
+    {t:'B',x:48,y:9},{t:'B',x:49,y:9},{t:'B',x:50,y:9},{t:'B',x:51,y:9},
+    {t:'C',x:48,y:7},{t:'C',x:49,y:7},{t:'C',x:50,y:7},{t:'C',x:51,y:7},
+    {t:'B',x:57,y:12},
+    {t:'E',x:60,y:13},{t:'E',x:62,y:13},{t:'E',x:64,y:13},{t:'E',x:66,y:13},{t:'E',x:68,y:13},
+    {t:'P',x:63,y:10,h:5},{t:'P',x:67,y:11,h:4},
+    {t:'?',x:65,y:7},{t:'S',x:65,y:7},
+    {t:'B',x:71,y:11},
+    {t:'C',x:73,y:9},{t:'C',x:74,y:9},{t:'C',x:75,y:9},
+    {t:'F',x:77,y:3}
+  ]));
+
+  return stages;
+}
+
+function buildGround(ranges) {
+  const g = new Array(80).fill('.');
+  for (const [start, end, ch] of ranges) {
+    for (let i = start; i < end; i++) g[i] = ch;
+  }
+  return g;
+}
+
+function createStage(num, groundArr, objects) {
+  return { num, ground: groundArr, objects };
+}
+
+// ステージをタイルマップに変換
+function buildLevel(stageData) {
+  const map = [];
+  for (let r = 0; r < ROWS; r++) {
+    map[r] = new Array(COLS).fill(0);
+  }
+  // 地面
+  for (let c = 0; c < COLS; c++) {
+    if (stageData.ground[c] === 'G') {
+      map[ROWS - 1][c] = 1; // 地面
+    }
+  }
+  const ents = { enemies: [], items: [], blocks: [], pipes: [], flag: null };
+
+  for (const obj of stageData.objects) {
+    switch (obj.t) {
+      case 'B': map[obj.y][obj.x] = 2; break; // ブロック
+      case '?': map[obj.y][obj.x] = 3; break; // ?ブロック
+      case 'P': ents.pipes.push(obj); break;
+      case 'E': ents.enemies.push({ x: obj.x * TILE, y: (ROWS - 2) * TILE, dir: -1, alive: true, type: 'goomba' }); break;
+      case 'C': ents.items.push({ x: obj.x * TILE + 8, y: obj.y * TILE + 8, type: 'coin', collected: false }); break;
+      case 'M': ents.items.push({ x: obj.x * TILE, y: (obj.y - 1) * TILE, type: 'mushroom', collected: false, hidden: true, parentX: obj.x, parentY: obj.y }); break;
+      case 'S': ents.items.push({ x: obj.x * TILE, y: (obj.y - 1) * TILE, type: 'star', collected: false, hidden: true, parentX: obj.x, parentY: obj.y }); break;
+      case 'F': ents.flag = { x: obj.x * TILE, y: obj.y * TILE }; break;
+    }
+  }
+  // パイプをマップに焼き込む
+  for (const p of ents.pipes) {
+    for (let row = p.y; row < ROWS - 1; row++) {
+      map[row][p.x] = 4;
+      map[row][p.x + 1] = 4;
+    }
+  }
+  return { map, ...ents };
+}
+
+const allStages = generateStages();
+
+function initStage(stageIdx) {
+  const sd = allStages[stageIdx];
+  const lv = buildLevel(sd);
+  level = lv.map;
+  enemies = lv.enemies;
+  items = lv.items;
+  particles = [];
+  camera.x = 0;
+  player = {
+    x: 2 * TILE, y: (ROWS - 3) * TILE,
+    vx: 0, vy: 0,
+    w: 24, h: 30,
+    onGround: false,
+    big: false,
+    star: false,
+    starTimer: 0,
+    facing: 1,
+    frame: 0,
+    frameTimer: 0
+  };
+  if (lv.flag) {
+    level._flag = lv.flag;
+  }
+  invincibleTimer = 0;
+}
+
+function resetGame() {
+  currentStage = 0;
+  lives = 3;
+  score = 0;
+  coins = 0;
+  initStage(0);
+}
+
+// 入力
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (state === 'title' && (e.code === 'Space' || e.code === 'Enter')) {
+    resetGame();
+    state = 'playing';
+  }
+  if (state === 'gameover' && (e.code === 'Space' || e.code === 'Enter')) {
+    state = 'title';
+  }
+  if (state === 'stageclear' && (e.code === 'Space' || e.code === 'Enter')) {
+    currentStage++;
+    if (currentStage >= 10) {
+      state = 'allclear';
+    } else {
+      initStage(currentStage);
+      state = 'playing';
+    }
+  }
+  if (state === 'allclear' && (e.code === 'Space' || e.code === 'Enter')) {
+    state = 'title';
+  }
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// 当たり判定
+function tileAt(col, row) {
+  if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return 0;
+  return level[row][col];
+}
+
+function isSolid(col, row) {
+  const t = tileAt(col, row);
+  return t === 1 || t === 2 || t === 3 || t === 4 || t === 5;
+}
+
+function collidesMap(x, y, w, h) {
+  const left = Math.floor(x / TILE);
+  const right = Math.floor((x + w - 1) / TILE);
+  const top = Math.floor(y / TILE);
+  const bottom = Math.floor((y + h - 1) / TILE);
+  for (let r = top; r <= bottom; r++) {
+    for (let c = left; c <= right; c++) {
+      if (isSolid(c, r)) return true;
+    }
+  }
+  return false;
+}
+
+// ブロック叩き
+function hitBlock(col, row) {
+  const t = level[row][col];
+  if (t === 3) { // ?ブロック
+    level[row][col] = 5; // 使用済み
+    score += 100;
+    // 隠しアイテムを出現
+    for (const item of items) {
+      if (item.hidden && item.parentX === col && item.parentY === row) {
+        item.hidden = false;
+        item.collected = false;
+      }
+    }
+    spawnParticles(col * TILE + 16, row * TILE, '#fcd838', 4);
+    playSound('bump');
+  } else if (t === 2 && player.big) {
+    level[row][col] = 0;
+    score += 50;
+    spawnParticles(col * TILE + 16, row * TILE + 16, '#dc8c3c', 8);
+    playSound('break');
+  } else {
+    playSound('bump');
+  }
+}
+
+// パーティクル
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 6,
+      vy: -Math.random() * 6 - 2,
+      life: 30 + Math.random() * 20,
+      color,
+      size: 2 + Math.random() * 3
+    });
+  }
+}
+
+// サウンド（Web Audio）
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playSound(type) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  gain.gain.value = 0.08;
+  const t = audioCtx.currentTime;
+  switch (type) {
+    case 'jump':
+      osc.frequency.setValueAtTime(400, t);
+      osc.frequency.linearRampToValueAtTime(800, t + 0.1);
+      gain.gain.linearRampToValueAtTime(0, t + 0.15);
+      osc.start(t); osc.stop(t + 0.15);
+      break;
+    case 'coin':
+      osc.frequency.setValueAtTime(988, t);
+      osc.frequency.setValueAtTime(1319, t + 0.05);
+      gain.gain.linearRampToValueAtTime(0, t + 0.15);
+      osc.start(t); osc.stop(t + 0.15);
+      break;
+    case 'stomp':
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(300, t);
+      osc.frequency.linearRampToValueAtTime(100, t + 0.1);
+      gain.gain.linearRampToValueAtTime(0, t + 0.12);
+      osc.start(t); osc.stop(t + 0.12);
+      break;
+    case 'powerup':
+      osc.frequency.setValueAtTime(523, t);
+      osc.frequency.linearRampToValueAtTime(1047, t + 0.3);
+      gain.gain.linearRampToValueAtTime(0, t + 0.4);
+      osc.start(t); osc.stop(t + 0.4);
+      break;
+    case 'bump':
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(200, t);
+      osc.frequency.linearRampToValueAtTime(100, t + 0.08);
+      gain.gain.linearRampToValueAtTime(0, t + 0.1);
+      osc.start(t); osc.stop(t + 0.1);
+      break;
+    case 'break':
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, t);
+      gain.gain.linearRampToValueAtTime(0, t + 0.15);
+      osc.start(t); osc.stop(t + 0.15);
+      break;
+    case 'die':
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(400, t);
+      osc.frequency.linearRampToValueAtTime(100, t + 0.5);
+      gain.gain.linearRampToValueAtTime(0, t + 0.6);
+      osc.start(t); osc.stop(t + 0.6);
+      break;
+    case 'clear':
+      osc.frequency.setValueAtTime(523, t);
+      osc.frequency.setValueAtTime(659, t + 0.1);
+      osc.frequency.setValueAtTime(784, t + 0.2);
+      osc.frequency.setValueAtTime(1047, t + 0.3);
+      gain.gain.linearRampToValueAtTime(0, t + 0.5);
+      osc.start(t); osc.stop(t + 0.5);
+      break;
+  }
+}
+
+// 更新
+function update() {
+  if (state !== 'playing') return;
+
+  const p = player;
+
+  // 左右移動
+  p.vx = 0;
+  if (keys['ArrowLeft'] || keys['KeyA']) { p.vx = -MOVE_SPEED; p.facing = -1; }
+  if (keys['ArrowRight'] || keys['KeyD']) { p.vx = MOVE_SPEED; p.facing = 1; }
+
+  // ジャンプ
+  if ((keys['ArrowUp'] || keys['KeyW'] || keys['Space']) && p.onGround && !jumpHeld) {
+    p.vy = JUMP_FORCE;
+    p.onGround = false;
+    jumpHeld = true;
+    playSound('jump');
+  }
+  if (!keys['ArrowUp'] && !keys['KeyW'] && !keys['Space']) {
+    jumpHeld = false;
+    if (p.vy < -4) p.vy = -4; // 短押しジャンプ
+  }
+
+  // 重力
+  p.vy += GRAVITY;
+  if (p.vy > MAX_FALL) p.vy = MAX_FALL;
+
+  // X移動 + 衝突
+  const nx = p.x + p.vx;
+  if (!collidesMap(nx + 4, p.y + 2, p.w - 8, p.h - 2)) {
+    p.x = nx;
+  }
+
+  // Y移動 + 衝突
+  const ny = p.y + p.vy;
+  if (p.vy > 0) {
+    if (collidesMap(p.x + 4, ny + 2, p.w - 8, p.h - 2)) {
+      p.y = Math.floor((ny + p.h) / TILE) * TILE - p.h;
+      p.vy = 0;
+      p.onGround = true;
+    } else {
+      p.y = ny;
+      p.onGround = false;
+    }
+  } else {
+    if (collidesMap(p.x + 4, ny + 2, p.w - 8, p.h - 2)) {
+      const hitRow = Math.floor((ny + 2) / TILE);
+      const hitColL = Math.floor((p.x + 6) / TILE);
+      const hitColR = Math.floor((p.x + p.w - 6) / TILE);
+      for (let c = hitColL; c <= hitColR; c++) {
+        if (isSolid(c, hitRow)) hitBlock(c, hitRow);
+      }
+      p.y = (hitRow + 1) * TILE;
+      p.vy = 1;
+    } else {
+      p.y = ny;
+    }
+  }
+
+  // アニメーション
+  p.frameTimer++;
+  if (p.vx !== 0 && p.onGround && p.frameTimer > 6) {
+    p.frame = (p.frame + 1) % 3;
+    p.frameTimer = 0;
+  }
+  if (!p.onGround) p.frame = 1;
+
+  // カメラ
+  camera.x = Math.max(0, Math.min(p.x - W / 3, COLS * TILE - W));
+
+  // 落下死
+  if (p.y > ROWS * TILE + 32) {
+    playerDie();
+    return;
+  }
+
+  // 画面左端制限
+  if (p.x < camera.x) p.x = camera.x;
+
+  // 無敵タイマー
+  if (invincibleTimer > 0) invincibleTimer--;
+
+  // スター
+  if (p.star) {
+    p.starTimer--;
+    if (p.starTimer <= 0) p.star = false;
+  }
+
+  // 敵更新
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    e.x += e.dir * 1.2;
+    // 壁反転
+    const ec = Math.floor((e.x + 12) / TILE);
+    const er = Math.floor((e.x + 12) / TILE);
+    if (collidesMap(e.x + (e.dir > 0 ? 24 : 0), e.y + 2, 1, 28)) {
+      e.dir *= -1;
+    }
+    // 崖検知
+    const footCol = Math.floor((e.x + 12 + e.dir * 14) / TILE);
+    const footRow = Math.floor((e.y + TILE) / TILE);
+    if (!isSolid(footCol, footRow) && footRow < ROWS) {
+      e.dir *= -1;
+    }
+
+    // プレイヤーとの衝突
+    if (invincibleTimer <= 0 && rectsOverlap(p.x + 4, p.y + 2, p.w - 8, p.h - 2, e.x + 2, e.y + 2, 28, 28)) {
+      if (p.star) {
+        e.alive = false;
+        score += 200;
+        spawnParticles(e.x + 12, e.y + 12, '#ff0', 6);
+        playSound('stomp');
+      } else if (p.vy > 0 && p.y + p.h - 8 < e.y + 16) {
+        e.alive = false;
+        p.vy = -8;
+        score += 100;
+        spawnParticles(e.x + 12, e.y + 12, '#c84c0c', 4);
+        playSound('stomp');
+      } else {
+        if (p.big) {
+          p.big = false;
+          invincibleTimer = 90;
+          playSound('bump');
+        } else {
+          playerDie();
+          return;
+        }
+      }
+    }
+  }
+
+  // アイテム
+  for (const item of items) {
+    if (item.collected || item.hidden) continue;
+    const ix = item.x, iy = item.y;
+    if (item.type === 'coin') {
+      if (rectsOverlap(p.x + 4, p.y + 2, p.w - 8, p.h - 2, ix - 4, iy - 4, 16, 16)) {
+        item.collected = true;
+        coins++;
+        score += 200;
+        spawnParticles(ix, iy, '#fcd838', 4);
+        playSound('coin');
+      }
+    } else if (item.type === 'mushroom') {
+      if (rectsOverlap(p.x + 4, p.y + 2, p.w - 8, p.h - 2, ix, iy, TILE, TILE)) {
+        item.collected = true;
+        p.big = true;
+        score += 1000;
+        playSound('powerup');
+      }
+    } else if (item.type === 'star') {
+      if (rectsOverlap(p.x + 4, p.y + 2, p.w - 8, p.h - 2, ix, iy, TILE, TILE)) {
+        item.collected = true;
+        p.star = true;
+        p.starTimer = 600;
+        score += 1000;
+        playSound('powerup');
+      }
+    }
+  }
+
+  // ゴール旗
+  if (level._flag) {
+    const f = level._flag;
+    if (p.x + p.w > f.x && p.x < f.x + TILE) {
+      score += 5000;
+      playSound('clear');
+      state = 'stageclear';
+    }
+  }
+
+  // パーティクル
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const pt = particles[i];
+    pt.x += pt.vx;
+    pt.y += pt.vy;
+    pt.vy += 0.2;
+    pt.life--;
+    if (pt.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function playerDie() {
+  lives--;
+  playSound('die');
+  if (lives <= 0) {
+    state = 'gameover';
+  } else {
+    initStage(currentStage);
+  }
+}
+
+function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+// 描画
+function draw() {
+  const si = currentStage;
+  const skyColor = COLORS.sky[si] || COLORS.sky[0];
+  const groundColor = COLORS.ground[si] || COLORS.ground[0];
+  const brickColor = COLORS.brick[si] || COLORS.brick[0];
+  const blockColor = COLORS.block[si] || COLORS.block[0];
+  const pipeColor = COLORS.pipe[si] || COLORS.pipe[0];
+
+  ctx.fillStyle = skyColor;
+  ctx.fillRect(0, 0, W, H);
+
+  if (state === 'title') {
+    drawTitle();
+    return;
+  }
+  if (state === 'gameover') {
+    drawGameOver();
+    return;
+  }
+  if (state === 'allclear') {
+    drawAllClear();
+    return;
+  }
+
+  const cx = Math.floor(camera.x);
+
+  // 背景の雲・山
+  drawBg(cx, si);
+
+  // タイルマップ
+  const startCol = Math.floor(cx / TILE);
+  const endCol = Math.min(startCol + VIEW_COLS + 2, COLS);
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = startCol; c < endCol; c++) {
+      const tile = level[r][c];
+      const dx = c * TILE - cx;
+      const dy = r * TILE;
+      if (tile === 1) { // 地面
+        ctx.fillStyle = groundColor;
+        ctx.fillRect(dx, dy, TILE, TILE);
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.fillRect(dx, dy, TILE, 3);
+      } else if (tile === 2) { // ブロック
+        ctx.fillStyle = brickColor;
+        ctx.fillRect(dx, dy, TILE, TILE);
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.fillRect(dx + 1, dy + 1, 14, 14);
+        ctx.fillRect(dx + 17, dy + 1, 14, 14);
+        ctx.fillRect(dx + 8, dy + 17, 16, 14);
+      } else if (tile === 3) { // ?ブロック
+        ctx.fillStyle = blockColor;
+        ctx.fillRect(dx, dy, TILE, TILE);
+        ctx.fillStyle = '#805820';
+        ctx.font = 'bold 18px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('?', dx + 16, dy + 24);
+      } else if (tile === 4) { // パイプ
+        ctx.fillStyle = pipeColor;
+        ctx.fillRect(dx, dy, TILE, TILE);
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(dx + 2, dy, 6, TILE);
+      } else if (tile === 5) { // 使用済みブロック
+        ctx.fillStyle = '#666';
+        ctx.fillRect(dx, dy, TILE, TILE);
+      }
+    }
+  }
+
+  // ゴール旗
+  if (level._flag) {
+    const f = level._flag;
+    const fx = f.x - cx;
+    const fy = f.y;
+    ctx.fillStyle = '#888';
+    ctx.fillRect(fx + 14, fy, 4, (ROWS - 1) * TILE - fy);
+    ctx.fillStyle = COLORS.flag;
+    ctx.fillRect(fx + 18, fy + 4, 24, 16);
+    // 旗のギザギザ
+    ctx.beginPath();
+    ctx.moveTo(fx + 42, fy + 4);
+    ctx.lineTo(fx + 42, fy + 20);
+    ctx.lineTo(fx + 46, fy + 12);
+    ctx.fill();
+  }
+
+  // アイテム
+  for (const item of items) {
+    if (item.collected || item.hidden) continue;
+    const ix = item.x - cx;
+    const iy = item.y;
+    if (ix < -TILE || ix > W + TILE) continue;
+    if (item.type === 'coin') {
+      const wobble = Math.sin(Date.now() / 200) * 2;
+      ctx.fillStyle = COLORS.coin;
+      ctx.beginPath();
+      ctx.arc(ix, iy + wobble, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#b89c10';
+      ctx.beginPath();
+      ctx.arc(ix - 1, iy + wobble - 1, 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (item.type === 'mushroom') {
+      ctx.fillStyle = COLORS.mushroom;
+      ctx.fillRect(ix + 4, iy, 24, 14);
+      ctx.fillStyle = '#fce4c8';
+      ctx.fillRect(ix + 4, iy + 14, 24, 14);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(ix + 10, iy + 4, 6, 6);
+      ctx.fillRect(ix + 20, iy + 4, 6, 6);
+    } else if (item.type === 'star') {
+      ctx.fillStyle = COLORS.star;
+      drawStar(ix + 16, iy + 16, 12);
+    }
+  }
+
+  // 敵
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const ex = e.x - cx;
+    if (ex < -TILE || ex > W + TILE) continue;
+    // 体
+    ctx.fillStyle = '#c84c0c';
+    ctx.fillRect(ex + 4, e.y + 8, 24, 20);
+    // 頭
+    ctx.fillStyle = '#a03808';
+    ctx.beginPath();
+    ctx.arc(ex + 16, e.y + 10, 12, Math.PI, 0);
+    ctx.fill();
+    // 目
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(ex + 9, e.y + 10, 5, 5);
+    ctx.fillRect(ex + 18, e.y + 10, 5, 5);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(ex + 11, e.y + 12, 3, 3);
+    ctx.fillRect(ex + 20, e.y + 12, 3, 3);
+    // 足
+    ctx.fillStyle = '#000';
+    const footOff = Math.sin(Date.now() / 150 + e.x) * 3;
+    ctx.fillRect(ex + 6, e.y + 28, 8, 4);
+    ctx.fillRect(ex + 18, e.y + 28, 8, 4);
+  }
+
+  // プレイヤー
+  drawPlayer(cx);
+
+  // パーティクル
+  for (const pt of particles) {
+    ctx.fillStyle = pt.color;
+    ctx.globalAlpha = pt.life / 50;
+    ctx.fillRect(pt.x - cx - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
+  }
+  ctx.globalAlpha = 1;
+
+  // HUD
+  drawHUD();
+
+  // ステージクリア
+  if (state === 'stageclear') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = COLORS.text;
+    ctx.font = 'bold 36px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`STAGE ${currentStage + 1} CLEAR!`, W / 2, H / 2 - 20);
+    ctx.font = '18px monospace';
+    ctx.fillText(`SCORE: ${score}`, W / 2, H / 2 + 20);
+    ctx.fillText('Press SPACE / ENTER', W / 2, H / 2 + 60);
+  }
+}
+
+function drawPlayer(cx) {
+  const p = player;
+  const px = p.x - cx;
+  const py = p.y;
+
+  if (invincibleTimer > 0 && Math.floor(invincibleTimer / 4) % 2 === 0) return;
+
+  const starFlash = p.star ? (Math.floor(Date.now() / 60) % 4) : 0;
+  const starColors = ['#e84040', '#38fc38', '#fcfc38', '#3838fc'];
+
+  ctx.save();
+  if (p.facing === -1) {
+    ctx.translate(px + p.w / 2, 0);
+    ctx.scale(-1, 1);
+    ctx.translate(-(px + p.w / 2), 0);
+  }
+
+  const sz = p.big ? 1.4 : 1;
+  const offy = p.big ? -12 : 0;
+
+  // 帽子
+  ctx.fillStyle = p.star ? starColors[starFlash] : COLORS.playerHat;
+  ctx.fillRect(px + 4, py + offy, 20 * sz, 8 * sz);
+  ctx.fillRect(px + 2, py + offy + 6 * sz, 24 * sz, 5 * sz);
+
+  // 顔
+  ctx.fillStyle = COLORS.playerFace;
+  ctx.fillRect(px + 4, py + offy + 10 * sz, 18 * sz, 10 * sz);
+
+  // 目
+  ctx.fillStyle = '#000';
+  ctx.fillRect(px + 14, py + offy + 12 * sz, 3, 3);
+
+  // 体
+  ctx.fillStyle = p.star ? starColors[(starFlash + 2) % 4] : COLORS.playerHat;
+  ctx.fillRect(px + 4, py + offy + 20 * sz, 18 * sz, 10 * sz);
+
+  // 足
+  if (p.onGround && p.vx !== 0) {
+    const legOff = p.frame === 1 ? 4 : 0;
+    ctx.fillStyle = '#4040c0';
+    ctx.fillRect(px + 4, py + offy + 30 * sz, 7, 4);
+    ctx.fillRect(px + 14, py + offy + 30 * sz - legOff, 7, 4 + legOff);
+  } else {
+    ctx.fillStyle = '#4040c0';
+    ctx.fillRect(px + 4, py + offy + 30 * sz, 7, 4);
+    ctx.fillRect(px + 14, py + offy + 30 * sz, 7, 4);
+  }
+
+  ctx.restore();
+}
+
+function drawStar(x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+    const px = x + Math.cos(angle) * r;
+    const py = y + Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawBg(cx, si) {
+  // 遠景の山
+  const mountainColor = si === 4 || si === 7 ? '#1a1a2a' : si === 5 ? '#c08040' : '#4a8848';
+  for (let i = 0; i < 5; i++) {
+    const mx = i * 300 - (cx * 0.2) % 300;
+    ctx.fillStyle = mountainColor;
+    ctx.beginPath();
+    ctx.moveTo(mx, H - TILE);
+    ctx.lineTo(mx + 80, H - TILE - 120);
+    ctx.lineTo(mx + 160, H - TILE);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(mx + 100, H - TILE);
+    ctx.lineTo(mx + 200, H - TILE - 80);
+    ctx.lineTo(mx + 300, H - TILE);
+    ctx.fill();
+  }
+  // 雲
+  const cloudColor = si === 4 || si === 7 ? 'rgba(100,100,140,0.3)' : 'rgba(255,255,255,0.5)';
+  for (let i = 0; i < 6; i++) {
+    const clx = i * 250 - (cx * 0.1) % 250;
+    const cly = 40 + (i % 3) * 30;
+    ctx.fillStyle = cloudColor;
+    ctx.beginPath();
+    ctx.arc(clx, cly, 20, 0, Math.PI * 2);
+    ctx.arc(clx + 20, cly - 8, 24, 0, Math.PI * 2);
+    ctx.arc(clx + 45, cly, 20, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawHUD() {
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, W, 36);
+
+  ctx.fillStyle = COLORS.text;
+  ctx.font = 'bold 14px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(`STAGE ${currentStage + 1}/10`, 16, 24);
+  ctx.fillText(`SCORE ${score}`, 180, 24);
+  ctx.fillText(`COINS ${coins}`, 400, 24);
+
+  // 残機
+  ctx.textAlign = 'right';
+  ctx.fillText(`LIVES `, W - 50, 24);
+  for (let i = 0; i < lives; i++) {
+    ctx.fillStyle = COLORS.player;
+    ctx.fillRect(W - 44 + i * 16, 14, 10, 12);
+  }
+}
+
+function drawTitle() {
+  ctx.fillStyle = '#5c94fc';
+  ctx.fillRect(0, 0, W, H);
+
+  // 雲
+  for (let i = 0; i < 8; i++) {
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    const x = (Date.now() / 40 + i * 120) % (W + 100) - 50;
+    const y = 60 + (i % 3) * 50;
+    ctx.beginPath();
+    ctx.arc(x, y, 16, 0, Math.PI * 2);
+    ctx.arc(x + 18, y - 6, 20, 0, Math.PI * 2);
+    ctx.arc(x + 38, y, 16, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 地面
+  ctx.fillStyle = '#c84c0c';
+  ctx.fillRect(0, H - 64, W, 64);
+  ctx.fillStyle = '#38a838';
+  ctx.fillRect(0, H - 64, W, 8);
+
+  ctx.fillStyle = COLORS.text;
+  ctx.font = 'bold 48px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('SUPER RUNNER', W / 2, 180);
+
+  ctx.font = 'bold 20px monospace';
+  ctx.fillStyle = '#fcd838';
+  ctx.fillText('10 STAGES', W / 2, 230);
+
+  ctx.font = '16px monospace';
+  ctx.fillStyle = '#fff';
+  const blink = Math.floor(Date.now() / 500) % 2;
+  if (blink) ctx.fillText('Press SPACE or ENTER to Start', W / 2, 310);
+
+  ctx.font = '12px monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fillText('Arrow Keys / WASD : Move    SPACE : Jump', W / 2, 370);
+  ctx.fillText('Stomp enemies / Collect coins / Reach the flag!', W / 2, 390);
+}
+
+function drawGameOver() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#e84040';
+  ctx.font = 'bold 48px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('GAME OVER', W / 2, H / 2 - 30);
+  ctx.fillStyle = COLORS.text;
+  ctx.font = '20px monospace';
+  ctx.fillText(`FINAL SCORE: ${score}`, W / 2, H / 2 + 20);
+  ctx.fillText(`Stage ${currentStage + 1}/10  Coins: ${coins}`, W / 2, H / 2 + 50);
+  ctx.font = '16px monospace';
+  const blink = Math.floor(Date.now() / 500) % 2;
+  if (blink) ctx.fillText('Press SPACE or ENTER', W / 2, H / 2 + 100);
+}
+
+function drawAllClear() {
+  const t = Date.now() / 1000;
+  const hue = (t * 60) % 360;
+  ctx.fillStyle = `hsl(${hue}, 30%, 15%)`;
+  ctx.fillRect(0, 0, W, H);
+
+  // 花火パーティクル
+  for (let i = 0; i < 20; i++) {
+    const angle = (t * 2 + i * 0.3) % (Math.PI * 2);
+    const dist = 40 + Math.sin(t * 3 + i) * 20;
+    const fx = W / 2 + Math.cos(angle + i) * dist * (1 + i * 0.1);
+    const fy = H / 2 - 60 + Math.sin(angle + i * 0.5) * dist * 0.5;
+    ctx.fillStyle = `hsl(${(hue + i * 30) % 360}, 80%, 60%)`;
+    ctx.beginPath();
+    ctx.arc(fx, fy, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = '#fcd838';
+  ctx.font = 'bold 42px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('ALL STAGES CLEAR!', W / 2, H / 2 - 40);
+
+  ctx.fillStyle = COLORS.text;
+  ctx.font = 'bold 24px monospace';
+  ctx.fillText(`TOTAL SCORE: ${score}`, W / 2, H / 2 + 10);
+  ctx.fillText(`COINS: ${coins}`, W / 2, H / 2 + 45);
+
+  ctx.font = '16px monospace';
+  const blink = Math.floor(Date.now() / 500) % 2;
+  if (blink) ctx.fillText('Press SPACE or ENTER', W / 2, H / 2 + 100);
+}
+
+// ゲームループ
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>

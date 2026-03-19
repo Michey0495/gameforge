@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#5c94fc"/>
+  <!-- 雲 -->
+  <circle cx="60" cy="50" r="18" fill="rgba(255,255,255,0.5)"/>
+  <circle cx="80" cy="42" r="22" fill="rgba(255,255,255,0.5)"/>
+  <circle cx="105" cy="50" r="18" fill="rgba(255,255,255,0.5)"/>
+  <circle cx="300" cy="70" r="14" fill="rgba(255,255,255,0.4)"/>
+  <circle cx="318" cy="63" r="18" fill="rgba(255,255,255,0.4)"/>
+  <circle cx="338" cy="70" r="14" fill="rgba(255,255,255,0.4)"/>
+  <!-- 山 -->
+  <polygon points="40,240 120,160 200,240" fill="#4a8848"/>
+  <polygon points="150,240 250,180 350,240" fill="#3a7838"/>
+  <!-- 地面 -->
+  <rect x="0" y="240" width="400" height="60" fill="#c84c0c"/>
+  <rect x="0" y="240" width="400" height="6" fill="#38a838"/>
+  <!-- ブロック -->
+  <rect x="120" y="170" width="28" height="28" fill="#dc8c3c" stroke="#a06830" stroke-width="2"/>
+  <rect x="150" y="170" width="28" height="28" fill="#fcdc78" stroke="#b89c50" stroke-width="2"/>
+  <text x="164" y="192" font-size="18" font-weight="bold" fill="#805820" text-anchor="middle" font-family="monospace">?</text>
+  <rect x="180" y="170" width="28" height="28" fill="#dc8c3c" stroke="#a06830" stroke-width="2"/>
+  <!-- パイプ -->
+  <rect x="280" y="200" width="40" height="40" fill="#38a838" rx="2"/>
+  <rect x="276" y="196" width="48" height="12" fill="#38a838" rx="2"/>
+  <rect x="282" y="200" width="10" height="40" fill="rgba(255,255,255,0.15)"/>
+  <!-- コイン -->
+  <circle cx="135" cy="145" r="6" fill="#fcd838"/>
+  <circle cx="165" cy="145" r="6" fill="#fcd838"/>
+  <circle cx="195" cy="145" r="6" fill="#fcd838"/>
+  <!-- プレイヤー -->
+  <rect x="85" y="196" width="20" height="8" fill="#e84040"/>
+  <rect x="83" y="202" width="24" height="5" fill="#e84040"/>
+  <rect x="85" y="207" width="18" height="10" fill="#fcb890"/>
+  <rect x="85" y="217" width="18" height="10" fill="#e84040"/>
+  <rect x="85" y="227" width="8" height="5" fill="#4040c0"/>
+  <rect x="96" y="227" width="8" height="5" fill="#4040c0"/>
+  <!-- 敵 -->
+  <rect x="230" y="216" width="24" height="18" fill="#c84c0c"/>
+  <circle cx="242" cy="216" r="12" fill="#a03808"/>
+  <rect x="234" y="212" width="4" height="4" fill="#fff"/>
+  <rect x="244" y="212" width="4" height="4" fill="#fff"/>
+  <!-- 旗 -->
+  <rect x="360" y="140" width="3" height="100" fill="#888"/>
+  <rect x="363" y="144" width="20" height="14" fill="#38fc38"/>
+  <!-- タイトル -->
+  <text x="200" y="30" font-size="16" font-weight="bold" fill="white" text-anchor="middle" font-family="monospace">SUPER RUNNER</text>
+</svg>

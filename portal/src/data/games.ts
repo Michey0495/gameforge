@@ -239,4 +239,31 @@ export const GAMES: GameInfo[] = [
     difficulty: 'medium',
     thumbnail: '/screenshots/frogger.svg',
   },
+  {
+    id: 'platformer',
+    folderName: '11-platformer',
+    name: 'スーパーランナー',
+    subtitle: '横スクロールアクション',
+    description:
+      'マリオ風の横スクロールアクション。全10ステージを走破せよ。敵を踏んで倒し、コインを集め、パワーアップアイテムを取ってゴールの旗を目指す。ステージごとに地形・配色・難易度が変化。',
+    category: 'arcade',
+    controls: [
+      '← → : 左右移動',
+      '↑ / Space : ジャンプ',
+      'WASD : 移動（代替）',
+    ],
+    features: [
+      '全10ステージ',
+      '敵踏み撃破',
+      'コイン収集',
+      'キノコ（巨大化）',
+      'スター（無敵）',
+      '?ブロック・ブロック破壊',
+      'ステージ別カラー',
+      '効果音',
+    ],
+    hasSound: true,
+    difficulty: 'medium',
+    thumbnail: '/screenshots/platformer.svg',
+  },
 ]

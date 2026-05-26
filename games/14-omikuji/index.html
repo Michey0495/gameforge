@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>おみくじ診断</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,body{
+  width:100%;height:100%;
+  background:linear-gradient(180deg,#1a0f1c 0%,#2a1530 100%);
+  color:#f5e6d3;
+  font-family:'Hiragino Mincho ProN','Yu Mincho','serif';
+  overflow:hidden;
+}
+#app{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;padding:20px;gap:20px}
+.title{font-size:26px;font-weight:bold;letter-spacing:8px;color:#e8c39e}
+.subtitle{font-size:12px;color:#8a6e5c;letter-spacing:4px;margin-top:-12px}
+.box{
+  position:relative;width:200px;height:280px;
+  background:linear-gradient(180deg,#8b1d2e 0%,#5a121f 100%);
+  border-radius:8px;box-shadow:0 12px 40px rgba(0,0,0,0.5),inset 0 2px 8px rgba(255,255,255,0.1);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:transform 200ms;
+}
+.box:hover{transform:translateY(-4px)}
+.box.shake{animation:shake 500ms}
+@keyframes shake{
+  0%,100%{transform:rotate(0deg) translateY(0)}
+  20%{transform:rotate(-8deg) translateY(-6px)}
+  40%{transform:rotate(8deg) translateY(-6px)}
+  60%{transform:rotate(-6deg) translateY(-4px)}
+  80%{transform:rotate(6deg) translateY(-2px)}
+}
+.box-label{
+  color:#f5e6d3;font-size:18px;letter-spacing:6px;writing-mode:vertical-rl;
+}
+.box-hint{position:absolute;bottom:-28px;font-size:11px;color:#8a6e5c;letter-spacing:2px;width:100%;text-align:center}
+
+.result{
+  display:none;width:min(560px,92vw);background:#f5e6d3;color:#2a1530;
+  border-radius:6px;padding:32px 28px;
+  box-shadow:0 16px 60px rgba(0,0,0,0.6);
+  position:relative;animation:slideIn 600ms;
+}
+@keyframes slideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.result.show{display:block}
+.fortune{font-size:64px;font-weight:bold;text-align:center;letter-spacing:8px;line-height:1;margin-bottom:8px}
+.fortune.daikichi{color:#c41e3a}
+.fortune.kichi{color:#d97706}
+.fortune.chukichi{color:#ca8a04}
+.fortune.shokichi{color:#65a30d}
+.fortune.suekichi{color:#0891b2}
+.fortune.kyo{color:#525252}
+.fortune-en{text-align:center;font-size:11px;letter-spacing:4px;color:#8a6e5c;margin-bottom:18px}
+.divider{height:1px;background:#d4b896;margin:16px 0}
+.advice{font-size:15px;line-height:1.9;text-align:center;color:#2a1530}
+.fields{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:16px;font-size:13px}
+.field{display:flex;justify-content:space-between;padding:6px 12px;background:rgba(42,21,48,0.05);border-radius:4px}
+.field b{color:#8b1d2e}
+.again{
+  display:block;margin:20px auto 0;background:#2a1530;color:#f5e6d3;border:none;
+  border-radius:4px;padding:10px 28px;font-size:13px;letter-spacing:4px;cursor:pointer;
+  font-family:inherit;
+}
+.again:hover{background:#3a2040}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="title">お み く じ</div>
+  <div class="subtitle">FORTUNE TELLING</div>
+  <div class="box" id="box">
+    <div class="box-label">引</div>
+    <div class="box-hint">CLICK TO DRAW</div>
+  </div>
+  <div class="result" id="result">
+    <div class="fortune" id="fortune"></div>
+    <div class="fortune-en" id="fortuneEn"></div>
+    <div class="divider"></div>
+    <div class="advice" id="advice"></div>
+    <div class="fields" id="fields"></div>
+    <button class="again" id="again">もう一度</button>
+  </div>
+</div>
+<script>
+const FORTUNES=[
+  {k:'大吉',e:'EXCELLENT LUCK',cls:'daikichi',w:8},
+  {k:'吉',e:'GOOD LUCK',cls:'kichi',w:20},
+  {k:'中吉',e:'MIDDLE LUCK',cls:'chukichi',w:22},
+  {k:'小吉',e:'SMALL LUCK',cls:'shokichi',w:22},
+  {k:'末吉',e:'FUTURE LUCK',cls:'suekichi',w:18},
+  {k:'凶',e:'BAD LUCK',cls:'kyo',w:10},
+];
+const ADVICES={
+  '大吉':['迷いがあるなら今日動け。タイミングは完璧。','長く温めていた話を持ち出す絶好の機会。','普段は選ばない選択肢が当たりを引く。'],
+  '吉':['コツコツ続けてきたことが芽を出す。','声をかけられたら素直に応じてみるとよい。','小さな決断を後回しにしないこと。'],
+  '中吉':['焦らず一歩ずつ。安定が最大の武器になる。','身近な人との会話に答えが隠れている。','普段の習慣を丁寧にこなすと運が向く。'],
+  '小吉':['期待しすぎず、目の前のことに集中するとよい。','頼まれごとを引き受けると後で返ってくる。','派手な動きより地味な積み上げが効く。'],
+  '末吉':['今は仕込みの時期。動くのは少し先でよい。','急がば回れ。寄り道が結果的に近道になる。','体調を整えることを最優先にすべし。'],
+  '凶':['動かないことが最大の防御。じっとしていろ。','不用意な発言と契約は今日避けるのが吉。','読みたかった本を開く。今日は内向きの日。'],
+};
+const FIELDS={
+  '恋愛':['縁が動く','穏やかに進む','焦らない','相手から来る','一度離れる','様子を見る'],
+  '仕事':['新規が当たり','根回しが効く','慎重に進める','人に任せる','見直しが必要','静観する'],
+  '金運':['臨時収入あり','現状維持','使いすぎ注意','貯め時','大きな出費注意','財布の整理を'],
+  '健康':['絶好調','問題なし','睡眠を増やす','歩く時間を作る','食事を見直す','休養が必要'],
+  'ラッキー':['赤いもの','青いもの','甘いもの','本','音楽','水辺'],
+};
+function weightedPick(){
+  const total=FORTUNES.reduce((s,f)=>s+f.w,0);
+  let r=Math.random()*total;
+  for(const f of FORTUNES){if((r-=f.w)<=0)return f}
+  return FORTUNES[0];
+}
+function pickField(key,fortuneIdx){
+  const arr=FIELDS[key];
+  return arr[Math.min(fortuneIdx,arr.length-1)];
+}
+function draw(){
+  const box=document.getElementById('box');
+  box.classList.add('shake');
+  setTimeout(()=>box.classList.remove('shake'),500);
+  setTimeout(()=>{
+    const f=weightedPick();
+    const idx=FORTUNES.indexOf(f);
+    document.getElementById('fortune').textContent=f.k;
+    document.getElementById('fortune').className='fortune '+f.cls;
+    document.getElementById('fortuneEn').textContent=f.e;
+    const ads=ADVICES[f.k];
+    document.getElementById('advice').textContent=ads[Math.floor(Math.random()*ads.length)];
+    const fields=document.getElementById('fields');
+    fields.innerHTML='';
+    for(const k of Object.keys(FIELDS)){
+      const el=document.createElement('div');
+      el.className='field';
+      el.innerHTML=`<span>${k}</span><b>${pickField(k,idx)}</b>`;
+      fields.appendChild(el);
+    }
+    document.getElementById('result').classList.add('show');
+    document.getElementById('box').style.display='none';
+  },500);
+}
+document.getElementById('box').onclick=draw;
+document.getElementById('again').onclick=()=>{
+  document.getElementById('result').classList.remove('show');
+  document.getElementById('box').style.display='flex';
+};
+</script>
+</body>
+</html>

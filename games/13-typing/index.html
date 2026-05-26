@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>タイピング速度計測</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,body{
+  width:100%;height:100%;
+  background:#1a1b26;color:#c0caf5;
+  font-family:'Helvetica Neue','Segoe UI','Hiragino Sans','Noto Sans JP',sans-serif;
+  overflow:hidden;
+}
+#app{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;padding:20px;gap:18px}
+.title{font-size:22px;font-weight:bold;letter-spacing:3px;color:#7aa2f7}
+.stats{display:flex;gap:28px}
+.stat{text-align:center;min-width:90px}
+.stat .v{font-size:32px;font-weight:bold;color:#c0caf5;line-height:1}
+.stat .l{font-size:11px;color:#565f89;letter-spacing:2px;margin-top:4px}
+.stat.wpm .v{color:#9ece6a}
+.stat.acc .v{color:#e0af68}
+.stat.time .v{color:#f7768e}
+.target{
+  width:min(820px,92vw);background:#24283b;border-radius:10px;padding:24px 28px;
+  font-family:'Menlo','Consolas','Courier New',monospace;
+  font-size:20px;line-height:1.7;letter-spacing:0.5px;
+  min-height:140px;position:relative;
+}
+.target span.ok{color:#9ece6a}
+.target span.ng{color:#f7768e;background:#3a1e2a;border-radius:2px}
+.target span.cur{background:#7aa2f7;color:#1a1b26;animation:blink 600ms infinite alternate}
+@keyframes blink{from{opacity:1}to{opacity:0.5}}
+#input{
+  width:min(820px,92vw);background:#16161e;color:#c0caf5;
+  border:1px solid #414868;border-radius:8px;padding:14px 18px;
+  font-family:inherit;font-size:16px;outline:none;
+}
+#input:focus{border-color:#7aa2f7}
+.controls{display:flex;gap:10px;align-items:center}
+.btn{background:#414868;color:#c0caf5;border:none;border-radius:6px;padding:8px 18px;font-size:13px;cursor:pointer;transition:background 120ms}
+.btn:hover{background:#565f89}
+.btn.primary{background:#7aa2f7;color:#1a1b26;font-weight:bold}
+select{background:#414868;color:#c0caf5;border:none;border-radius:6px;padding:7px 12px;font-size:13px}
+.result{font-size:13px;color:#565f89;min-height:18px}
+.history{font-size:11px;color:#565f89;text-align:center;max-width:600px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="title">TYPING SPEED</div>
+  <div class="stats">
+    <div class="stat wpm"><div class="v" id="wpm">0</div><div class="l">WPM</div></div>
+    <div class="stat acc"><div class="v" id="acc">100</div><div class="l">ACCURACY %</div></div>
+    <div class="stat time"><div class="v" id="time">0.0</div><div class="l">SEC</div></div>
+  </div>
+  <div class="target" id="target"></div>
+  <input id="input" placeholder="ここをクリックして入力開始..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  <div class="controls">
+    <select id="lang">
+      <option value="en">英語</option>
+      <option value="code">コード</option>
+      <option value="quote">名言</option>
+    </select>
+    <button class="btn primary" id="restart">リスタート</button>
+  </div>
+  <div class="result" id="result"></div>
+  <div class="history" id="history"></div>
+</div>
+<script>
+const POOLS={
+  en:[
+    "The quick brown fox jumps over the lazy dog near the river bank.",
+    "Programming is the art of telling another human what one wants the computer to do.",
+    "Simplicity is the ultimate sophistication when it comes to good design.",
+    "A journey of a thousand miles begins with a single small step forward.",
+    "Curiosity about life in all of its aspects is the secret of great people.",
+  ],
+  code:[
+    "const sum = (a, b) => a + b; console.log(sum(1, 2));",
+    "function fib(n) { return n < 2 ? n : fib(n-1) + fib(n-2); }",
+    "if (user && user.isActive) { return await fetch('/api/me'); }",
+    "for (let i = 0; i < arr.length; i++) { total += arr[i]; }",
+    "const data = JSON.parse(response.body).items.filter(x => x.ok);",
+  ],
+  quote:[
+    "Stay hungry, stay foolish. The future belongs to those who learn more skills.",
+    "The only way to do great work is to love what you are doing every day.",
+    "Talk is cheap. Show me the code that actually solves the real problem.",
+    "Make it work, make it right, make it fast. In that strict order, always.",
+    "Premature optimization is the root of all evil in software engineering today.",
+  ]
+};
+const $=id=>document.getElementById(id);
+let target='',startTs=0,timer=null,finished=true;
+const history=JSON.parse(localStorage.getItem('typingHistory')||'[]');
+
+function pick(){
+  const pool=POOLS[$('lang').value];
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+function renderTarget(typed){
+  const t=$('target');t.innerHTML='';
+  for(let i=0;i<target.length;i++){
+    const s=document.createElement('span');
+    s.textContent=target[i];
+    if(i<typed.length){s.className=typed[i]===target[i]?'ok':'ng'}
+    else if(i===typed.length){s.className='cur'}
+    t.appendChild(s);
+  }
+}
+function reset(){
+  target=pick();
+  $('input').value='';
+  $('input').disabled=false;
+  $('result').textContent='';
+  $('wpm').textContent='0';$('acc').textContent='100';$('time').textContent='0.0';
+  renderTarget('');
+  startTs=0;finished=false;
+  if(timer){clearInterval(timer);timer=null}
+  $('input').focus();
+}
+function tick(){
+  if(!startTs)return;
+  const sec=(Date.now()-startTs)/1000;
+  $('time').textContent=sec.toFixed(1);
+  const typed=$('input').value;
+  const words=typed.length/5;
+  const wpm=sec>0?Math.round(words/(sec/60)):0;
+  $('wpm').textContent=wpm;
+  let correct=0;
+  for(let i=0;i<typed.length;i++)if(typed[i]===target[i])correct++;
+  const acc=typed.length?Math.round(correct/typed.length*100):100;
+  $('acc').textContent=acc;
+}
+$('input').addEventListener('input',e=>{
+  if(finished)return;
+  if(!startTs){startTs=Date.now();timer=setInterval(tick,80)}
+  const typed=e.target.value;
+  renderTarget(typed);
+  tick();
+  if(typed.length>=target.length){
+    finished=true;clearInterval(timer);
+    const sec=(Date.now()-startTs)/1000;
+    let correct=0;
+    for(let i=0;i<target.length;i++)if(typed[i]===target[i])correct++;
+    const acc=Math.round(correct/target.length*100);
+    const wpm=Math.round((target.length/5)/(sec/60));
+    $('result').textContent=`完了 ${wpm} WPM / 正確率 ${acc}% / ${sec.toFixed(1)}秒`;
+    $('input').disabled=true;
+    history.unshift({wpm,acc,sec:sec.toFixed(1),ts:Date.now()});
+    history.splice(10);
+    localStorage.setItem('typingHistory',JSON.stringify(history));
+    renderHistory();
+  }
+});
+function renderHistory(){
+  if(!history.length){$('history').textContent='';return}
+  const best=Math.max(...history.map(h=>h.wpm));
+  const avg=Math.round(history.reduce((s,h)=>s+h.wpm,0)/history.length);
+  $('history').textContent=`直近${history.length}回  最高 ${best} WPM / 平均 ${avg} WPM`;
+}
+$('restart').onclick=reset;
+$('lang').onchange=reset;
+window.addEventListener('keydown',e=>{
+  if(e.key==='Tab'){e.preventDefault();reset()}
+});
+renderHistory();
+reset();
+</script>
+</body>
+</html>

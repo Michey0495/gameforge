@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ライフゲーム</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,body{
+  width:100%;height:100%;
+  background:#0e1116;color:#e6edf3;
+  font-family:'Helvetica Neue','Segoe UI','Hiragino Sans','Noto Sans JP',sans-serif;
+  user-select:none;-webkit-user-select:none;overflow:hidden;
+}
+#app{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;padding:12px;gap:10px}
+.header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center}
+.title{font-size:22px;font-weight:bold;letter-spacing:2px}
+.stats{display:flex;gap:14px;font-size:13px;color:#8b949e}
+.stats b{color:#e6edf3;font-size:15px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.btn{background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;transition:background 120ms}
+.btn:hover{background:#30363d}
+.btn.primary{background:#238636;border-color:#2ea043}
+.btn.primary:hover{background:#2ea043}
+select,input[type=range]{background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:5px 8px;font-size:13px}
+.speed-wrap{display:flex;align-items:center;gap:6px;font-size:12px;color:#8b949e}
+#canvas{
+  background:#0a0d12;border:1px solid #30363d;border-radius:4px;
+  image-rendering:pixelated;cursor:crosshair;
+  max-width:calc(100vw - 24px);max-height:calc(100vh - 160px);max-height:calc(100dvh - 160px);
+}
+.hint{font-size:11px;color:#6e7681;text-align:center}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div class="title">LIFE GAME</div>
+    <div class="stats">
+      <div>世代 <b id="gen">0</b></div>
+      <div>生存 <b id="pop">0</b></div>
+    </div>
+  </div>
+  <div class="controls">
+    <button class="btn primary" id="play">再生</button>
+    <button class="btn" id="step">1ステップ</button>
+    <button class="btn" id="clear">クリア</button>
+    <button class="btn" id="random">ランダム</button>
+    <select id="preset">
+      <option value="">パターン選択</option>
+      <option value="glider">グライダー</option>
+      <option value="pulsar">パルサー</option>
+      <option value="gosper">ガン</option>
+      <option value="acorn">どんぐり</option>
+    </select>
+    <div class="speed-wrap">速度<input type="range" id="speed" min="1" max="60" value="15">fps</div>
+  </div>
+  <canvas id="canvas"></canvas>
+  <div class="hint">クリック/ドラッグで生死を反転 / R=ランダム / C=クリア / Space=再生</div>
+</div>
+<script>
+const COLS=80,ROWS=50,CELL=10;
+const canvas=document.getElementById('canvas');
+canvas.width=COLS*CELL;canvas.height=ROWS*CELL;
+const ctx=canvas.getContext('2d');
+let grid=new Uint8Array(COLS*ROWS);
+let next=new Uint8Array(COLS*ROWS);
+let gen=0,playing=false,fps=15,timer=null;
+const idx=(x,y)=>y*COLS+x;
+function draw(){
+  ctx.fillStyle='#0a0d12';ctx.fillRect(0,0,canvas.width,canvas.height);
+  let live=0;
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    if(grid[idx(x,y)]){
+      live++;
+      ctx.fillStyle='#3fb950';
+      ctx.fillRect(x*CELL+1,y*CELL+1,CELL-2,CELL-2);
+    }
+  }
+  ctx.strokeStyle='#161b22';ctx.lineWidth=1;
+  for(let x=0;x<=COLS;x++){ctx.beginPath();ctx.moveTo(x*CELL,0);ctx.lineTo(x*CELL,canvas.height);ctx.stroke()}
+  for(let y=0;y<=ROWS;y++){ctx.beginPath();ctx.moveTo(0,y*CELL);ctx.lineTo(canvas.width,y*CELL);ctx.stroke()}
+  document.getElementById('gen').textContent=gen;
+  document.getElementById('pop').textContent=live;
+}
+function step(){
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    let n=0;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      if(dx===0&&dy===0)continue;
+      const nx=(x+dx+COLS)%COLS,ny=(y+dy+ROWS)%ROWS;
+      n+=grid[idx(nx,ny)];
+    }
+    const c=grid[idx(x,y)];
+    next[idx(x,y)]=(c&&(n===2||n===3))||(!c&&n===3)?1:0;
+  }
+  [grid,next]=[next,grid];
+  gen++;
+  draw();
+}
+function clearGrid(){grid.fill(0);gen=0;draw()}
+function randomize(){for(let i=0;i<grid.length;i++)grid[i]=Math.random()<0.28?1:0;gen=0;draw()}
+function setCell(mx,my,val){
+  const r=canvas.getBoundingClientRect();
+  const x=Math.floor((mx-r.left)/r.width*COLS);
+  const y=Math.floor((my-r.top)/r.height*ROWS);
+  if(x<0||y<0||x>=COLS||y>=ROWS)return;
+  grid[idx(x,y)]=val;draw();
+}
+let drawing=false,drawVal=1;
+canvas.addEventListener('pointerdown',e=>{
+  drawing=true;
+  const r=canvas.getBoundingClientRect();
+  const x=Math.floor((e.clientX-r.left)/r.width*COLS);
+  const y=Math.floor((e.clientY-r.top)/r.height*ROWS);
+  drawVal=grid[idx(x,y)]?0:1;
+  setCell(e.clientX,e.clientY,drawVal);
+});
+canvas.addEventListener('pointermove',e=>{if(drawing)setCell(e.clientX,e.clientY,drawVal)});
+window.addEventListener('pointerup',()=>drawing=false);
+
+function play(p){
+  playing=p;
+  document.getElementById('play').textContent=p?'停止':'再生';
+  if(timer)clearInterval(timer);
+  if(p)timer=setInterval(step,1000/fps);
+}
+document.getElementById('play').onclick=()=>play(!playing);
+document.getElementById('step').onclick=()=>{if(!playing)step()};
+document.getElementById('clear').onclick=()=>{play(false);clearGrid()};
+document.getElementById('random').onclick=()=>{play(false);randomize()};
+document.getElementById('speed').oninput=e=>{fps=+e.target.value;if(playing)play(true)};
+const presets={
+  glider:[[1,0],[2,1],[0,2],[1,2],[2,2]],
+  pulsar:[[2,0],[3,0],[4,0],[8,0],[9,0],[10,0],[0,2],[5,2],[7,2],[12,2],[0,3],[5,3],[7,3],[12,3],[0,4],[5,4],[7,4],[12,4],[2,5],[3,5],[4,5],[8,5],[9,5],[10,5],[2,7],[3,7],[4,7],[8,7],[9,7],[10,7],[0,8],[5,8],[7,8],[12,8],[0,9],[5,9],[7,9],[12,9],[0,10],[5,10],[7,10],[12,10],[2,12],[3,12],[4,12],[8,12],[9,12],[10,12]],
+  acorn:[[1,0],[3,1],[0,2],[1,2],[4,2],[5,2],[6,2]],
+  gosper:[[24,0],[22,1],[24,1],[12,2],[13,2],[20,2],[21,2],[34,2],[35,2],[11,3],[15,3],[20,3],[21,3],[34,3],[35,3],[0,4],[1,4],[10,4],[16,4],[20,4],[21,4],[0,5],[1,5],[10,5],[14,5],[16,5],[17,5],[22,5],[24,5],[10,6],[16,6],[24,6],[11,7],[15,7],[12,8],[13,8]]
+};
+document.getElementById('preset').onchange=e=>{
+  if(!e.target.value)return;
+  play(false);clearGrid();
+  const ox=Math.floor(COLS/2)-8,oy=Math.floor(ROWS/2)-6;
+  presets[e.target.value].forEach(([x,y])=>{grid[idx(ox+x,oy+y)]=1});
+  draw();
+  e.target.value='';
+};
+window.addEventListener('keydown',e=>{
+  if(e.key===' '){e.preventDefault();play(!playing)}
+  else if(e.key==='r'||e.key==='R'){play(false);randomize()}
+  else if(e.key==='c'||e.key==='C'){play(false);clearGrid()}
+  else if(e.key==='s'||e.key==='S'){if(!playing)step()}
+});
+randomize();
+</script>
+</body>
+</html>
